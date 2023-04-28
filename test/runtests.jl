@@ -33,9 +33,42 @@ function callExternalTable()
   local fileName::String = "NoName"
   local tableName::String = "NoName"
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
-  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2_julia(fileName, tableName, tableCShape, size(table,1), size(table,2), columns, size(columns,1), LinearSegments, LastTwoPoints, verbose)
+  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName, tableName, tableCShape, size(table,1), size(table,2), columns, size(columns,1), LinearSegments, LastTwoPoints, verbose)
 end
 
 @testset "Test the Modelica external C API" begin
-  @test typeof(callExternalTable()) == Ptr{Nothing}
+  id = callExternalTable()
+  @test typeof(id) == Ptr{Nothing}
+  @test 0.018230727272727166  == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_getDerValue(id, 1, 1.0, 0.2)
+  end
+
+  @test 2100.0  == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_maximumAbscissa(id)
+  end
+
+  @test 1990.0  == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_minimumAbscissa(id)
+  end
+
+  @test -175.26992290908984  == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_getValue(id, 1, 0.2)
+  end
+
+  @test 4 == begin
+    OMRuntimeExternalC.ModelicaStrings_skipWhiteSpace("   an apple", 1)
+  end
+
+  @test 3 == begin
+    OMRuntimeExternalC.ModelicaStrings_length("abc")
+  end
+  @test true == begin
+    try
+      OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_close(id)
+      true
+    catch
+      false
+    end
+  end
+
 end

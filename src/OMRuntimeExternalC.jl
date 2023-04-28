@@ -56,6 +56,51 @@ end
 
 @show installedLibPath
 
+const _libPathlibOpenModelicaRuntimeC = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "OpenModelicaRuntimeC", "lib")
+const libPathlibOpenModelicaRuntimeC = locateSharedParserLibrary(SHARED_DIRECTORY_PATH, "OpenModelicaRuntimeC", "shared")
+
+const installedLibPathlibOpenModelicaRuntimeC = if _libPathlibOpenModelicaRuntimeC !== nothing
+  _libPathlibOpenModelicaRuntimeC
+else
+  if libPathlibOpenModelicaRuntimeC === nothing
+    throw("omc runtime not found")
+  end
+  libPathlibOpenModelicaRuntimeC
+end
+
+const _libPathlibSimulationRuntimeC = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "SimulationRuntimeC", "lib")
+const libPathlibSimulationRuntimeC = locateSharedParserLibrary(SHARED_DIRECTORY_PATH, "SimulationRuntimeC", "shared")
+const installedLibPathlibSimulationRuntimeC = if _libPathlibSimulationRuntimeC !== nothing
+  _libPathlibSimulationRuntimeC
+else
+  if libPathlibSimulationRuntimeC === nothing
+    throw("omc sim runtime not found")
+  end
+  libPathlibSimulationRuntimeC
+end
+
+const _libPathlibModelicaIO = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "ModelicaIO", "lib")
+const libPathlibModelicaIO = locateSharedParserLibrary(SHARED_DIRECTORY_PATH, "ModelicaIO", "shared")
+const installedLibPathlibModelicaIO = if _libPathlibModelicaIO !== nothing
+  _libPathlibModelicaIO
+else
+  if libPathlibModelicaIO === nothing
+    throw("omc sim runtime not found")
+  end
+  libPathlibModelicaIO
+end
+
+const _libPathlibModelicaExternalC = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "ModelicaExternalC", "lib")
+const libPathlibModelicaExternalC = locateSharedParserLibrary(SHARED_DIRECTORY_PATH, "ModelicaExternalC", "shared")
+const installedLibPathlibModelicaExternalC = if _libPathlibModelicaExternalC !== nothing
+  _libPathlibModelicaExternalC
+else
+  if libPathlibModelicaExternalC === nothing
+    throw("omc sim runtime not found")
+  end
+  libPathlibModelicaExternalC
+end
+
 function __init__()
   local sep = Sys.iswindows() ? ';' : ':'
   Base._setenv("PATH", ENV["PATH"] * sep * splitdir(installedLibPath)[1])
