@@ -1,11 +1,6 @@
 module OMRuntimeExternalC
 
 import Glob
-const INSTALLATION_DIRECTORY_PATH = realpath(realpath(dirname(Base.find_package("OMRuntimeExternalC")) * "/../"))
-@show INSTALLATION_DIRECTORY_PATH
-#Shared path
-const SHARED_DIRECTORY_PATH = realpath(string(INSTALLATION_DIRECTORY_PATH, "/lib/ext"))
-@show SHARED_DIRECTORY_PATH
 
 """
   This function finds libraries built by the user or by the CI
@@ -27,18 +22,16 @@ function locateSharedParserLibrary(directoryToSearchIn, libraryName, relativeDir
     ".dylib"
   end
   fullLibName = fullLibName * libraryName * ext
-  @show fullLibName
   for r in results
     for p in r
       if occursin(fullLibName, p)
-        @show p
+        @info "Loaded shared library:" p
         return p
       end
     end
   end
   nothing
 end
-
 
 function __init__()
   local sep = Sys.iswindows() ? ';' : ':'
