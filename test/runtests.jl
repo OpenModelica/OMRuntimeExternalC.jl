@@ -27,13 +27,22 @@ function callExternalTable()
           [2095.0 6.92195571691863]; [2096.0 6.905594588709496]; [2097.0 6.877739488375711]; [2098.0 6.842301913644552]; [2099.0 6.767535284314026];
           [2100.0 6.6715324599583505]]
   local columns::Vector{Int64} = [2]
-  local LinearSegments::Int64 = 1
-  local LastTwoPoints::Int64 = 2
+  local smoothness::Int64 = 1
+  local extrapolation::Int64 = 2
   local verbose::Int64 = 1
   local fileName::String = "NoName"
   local tableName::String = "NoName"
   #local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
-  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName, tableName, table, size(table,1), size(table,2), columns, size(columns,1), LinearSegments, LastTwoPoints, verbose)
+  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName,
+                                                               tableName,
+                                                               table,
+                                                               size(table,1),
+                                                               size(table,2),
+                                                               columns,
+                                                               size(columns,1),
+                                                               smoothness,
+                                                               extrapolation,
+                                                               verbose)
 end
 
 @testset "Test the Modelica external C API" begin
@@ -75,9 +84,10 @@ end
   local vec1 = [1.1, 1.2]
   local vecVec::Vector{Vector{Float64}} = [vec0, vec1]
   local columns::Vector{Int64} = [2]
-  local LinearSegments::Int64 = 1
-  local LastTwoPoints::Int64 = 2
-  local verbose::Int64 = 1
+  local smoothness::Int64 = 1
+  local extrapolation::Int64 = 2
+  local nCols = 1
+  local verbose::Bool = true
   local fileName::String = "NoName"
   local tableName::String = "NoName"
   local id2 = OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName,
@@ -86,8 +96,9 @@ end
                                                                            2,
                                                                            2,
                                                                            columns,
-                                                                           LinearSegments,
-                                                                           LastTwoPoints,
+                                                                           nCols,
+                                                                           smoothness,
+                                                                           extrapolation,
                                                                            verbose)
   @test 1.2 == begin
     OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_maximumAbscissa(id2)
