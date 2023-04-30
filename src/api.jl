@@ -31,7 +31,33 @@ end
 function ModelicaStandardTables_CombiTable1D_init2(
   fileName::String,
   tableName::String,
-  table::Vector{Float64},
+  table::Vector{Vector{Float64}},
+  nRow::Int64,
+  nColumn::Int64,
+  columns::Vector{Int64},
+  nCols::Int64,
+  smoothness::Int64,
+  extrapolation::Int64,
+  verbose::Int64 = 1)
+  #= Requires Julia > 1.9 =#
+  local tableM = stack(table)
+  ModelicaStandardTables_CombiTable1D_init2(
+    fileName,
+    tableName,
+    tableM,
+    nRow,
+    nColumn,
+    columns,
+    nCols,
+    smoothness,
+    extrapolation,
+    verbose)
+end
+
+function ModelicaStandardTables_CombiTable1D_init2(
+  fileName::String,
+  tableName::String,
+  table::Matrix{Float64},
   nRow::Int64,
   nColumn::Int64,
   columns::Vector{Int64},
@@ -39,10 +65,11 @@ function ModelicaStandardTables_CombiTable1D_init2(
   smoothness::Int64,
   extrapolation::Int64,
   verbose::Int64 = 1)::Any
+  #= Converts the table into the C format, that is double* =#
+  local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
   local res = ccall((:ModelicaStandardTables_CombiTable1D_init2, installedLibPath), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint),
-                fileName, tableName, table, nRow, nColumn, columns, nCols, smoothness, extrapolation, verbose)
-#  @show res
+                    fileName, tableName, tableCShape, nRow, nColumn, columns, nCols, smoothness, extrapolation, verbose)
   res
 end
 
