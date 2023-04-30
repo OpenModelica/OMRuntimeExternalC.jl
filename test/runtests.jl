@@ -32,8 +32,8 @@ function callExternalTable()
   local verbose::Int64 = 1
   local fileName::String = "NoName"
   local tableName::String = "NoName"
-  local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
-  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName, tableName, tableCShape, size(table,1), size(table,2), columns, size(columns,1), LinearSegments, LastTwoPoints, verbose)
+  #local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
+  OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName, tableName, table, size(table,1), size(table,2), columns, size(columns,1), LinearSegments, LastTwoPoints, verbose)
 end
 
 @testset "Test the Modelica external C API" begin
@@ -69,6 +69,32 @@ end
     catch
       false
     end
+  end
+  #= Test that the API can be called with a vector of vectors as well. =#
+  local vec0 = [1.1, 1.2]
+  local vec1 = [1.1, 1.2]
+  local vecVec::Vector{Vector{Float64}} = [vec0, vec1]
+  local columns::Vector{Int64} = [2]
+  local LinearSegments::Int64 = 1
+  local LastTwoPoints::Int64 = 2
+  local verbose::Int64 = 1
+  local fileName::String = "NoName"
+  local tableName::String = "NoName"
+  local id2 = OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_init2(fileName,
+                                                                           tableName,
+                                                                           vecVec,
+                                                                           2,
+                                                                           2,
+                                                                           columns,
+                                                                           LinearSegments,
+                                                                           LastTwoPoints,
+                                                                           verbose)
+  @test 1.2 == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_maximumAbscissa(id2)
+  end
+
+  @test 1.1 == begin
+    OMRuntimeExternalC.ModelicaStandardTables_CombiTable1D_minimumAbscissa(id2)
   end
 
 end
