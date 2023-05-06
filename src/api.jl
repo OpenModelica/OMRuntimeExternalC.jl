@@ -166,7 +166,14 @@ function ModelicaStandardTables_CombiTable1D_getDerValue(
   )::Cdouble
 end
 
-#= Note that these bounds checks below will impair performance... =#
+"""
+ModelicaStandardTables_CombiTable1D_getDerValue(
+  tableID::ExternalCombiTable1D,
+  icol::Int64,
+  u::Float64,
+  der_u::Float64,
+  )
+"""
 function ModelicaStandardTables_CombiTable1D_getDerValue(
   tableID::ExternalCombiTable1D,
   icol::Int64,
@@ -186,11 +193,35 @@ function ModelicaStandardTables_CombiTable1D_getDerValue(
 end
 
 """
+  double ModelicaStandardTables_CombiTable1D_getValue(void* _tableID, int iCol, double u)
+"""
+function ModelicaStandardTables_CombiTable1D_getValue(
+  tableID::Ptr{Cvoid},
+  icol::Cint,
+  u::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTable1D_getValue(
+  tableID::ExternalCombiTable1D,
+  icol::Int64,
+  u::Float64,
+  )::Float64
+  res = ccall((:ModelicaStandardTables_CombiTable1D_getValue, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cint, Cdouble),
+              tableID, icol, u)
+end
+
+"""
   double ModelicaStandardTables_CombiTable1D_maximumAbscissa(void* _tableID)
 """
 function ModelicaStandardTables_CombiTable1D_maximumAbscissa(arg::Ptr)
 end
 
+"""
+  ModelicaStandardTables_CombiTable1D_maximumAbscissa(tableID::ExternalCombiTable1D)::Float64
+"""
 function ModelicaStandardTables_CombiTable1D_maximumAbscissa(tableID::ExternalCombiTable1D)::Float64
   res = ccall((:ModelicaStandardTables_CombiTable1D_maximumAbscissa, installedLibPath),
               #= Returns =# Cdouble,
@@ -205,24 +236,14 @@ double ModelicaStandardTables_CombiTable1D_minimumAbscissa(void* _tableID)
 function ModelicaStandardTables_CombiTable1D_minimumAbscissa(arg::Ptr)
 end
 
+"""
+  ModelicaStandardTables_CombiTable1D_minimumAbscissa(tableID::ExternalCombiTable1D)
+"""
 function ModelicaStandardTables_CombiTable1D_minimumAbscissa(tableID::ExternalCombiTable1D)
     res = ccall((:ModelicaStandardTables_CombiTable1D_minimumAbscissa, installedLibPath),
               #= Returns =# Cdouble,
               (Ptr{Cvoid},),
                 tableID)
-end
-
-"""
-double ModelicaStandardTables_CombiTable1D_getValue(void* _tableID, int iCol, double u)
-"""
-function ModelicaStandardTables_CombiTable1D_getValue(tableID::Ptr{Cvoid}, icol::Cint, u::Cdouble)
-end
-
-function ModelicaStandardTables_CombiTable1D_getValue(tableID::ExternalCombiTable1D, icol::Int64, u::Float64)
-      res = ccall((:ModelicaStandardTables_CombiTable1D_getValue, installedLibPath),
-              #= Returns =# Cdouble,
-              (Ptr{Cvoid}, Cint, Cdouble),
-                  tableID, icol, u)
 end
 
 
@@ -233,6 +254,9 @@ int ModelicaStrings_skipWhiteSpace(_In_z_ const char* string, int i)
 function ModelicaStrings_skipWhiteSpace(string::Ptr{Cchar}, startIndex::Cint)
 end
 
+"""
+ModelicaStrings_skipWhiteSpace(string::String, startIndex::Int64)
+"""
 function ModelicaStrings_skipWhiteSpace(string::String, startIndex::Int64)
   res = ccall((:ModelicaStrings_skipWhiteSpace, installedLibPathlibModelicaExternalC),
               #= Returns =# Cint,
@@ -247,6 +271,9 @@ ModelicaStrings_length(_In_z_ const char* string)
 function ModelicaStrings_length(string::Ptr{Cchar})
 end
 
+"""
+ModelicaStrings_length(string::String)
+"""
 function ModelicaStrings_length(string::String)
     res = ccall((:ModelicaStrings_length, installedLibPathlibModelicaExternalC),
               #= Returns =# Cint,
