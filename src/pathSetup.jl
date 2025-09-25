@@ -14,7 +14,7 @@ const installedLibPath = if _libpath !== nothing
     _libpath
   else
     if libpath === nothing
-      throw("Could not find the ModelicaStandardTables library")
+      @error "Could not find the ModelicaStandardTables library"
     end
     libpath
 end
@@ -28,7 +28,7 @@ const installedLibPathlibOpenModelicaRuntimeC = if _libPathlibOpenModelicaRuntim
   _libPathlibOpenModelicaRuntimeC
 else
   if libPathlibOpenModelicaRuntimeC === nothing
-    throw("omc runtime not found")
+    @error "omc runtime not found"
   end
   libPathlibOpenModelicaRuntimeC
 end
@@ -39,7 +39,7 @@ const installedLibPathlibSimulationRuntimeC = if _libPathlibSimulationRuntimeC !
   _libPathlibSimulationRuntimeC
 else
   if libPathlibSimulationRuntimeC === nothing
-    throw("omc sim runtime not found")
+    @error "omc sim runtime not found"
   end
   libPathlibSimulationRuntimeC
 end
@@ -50,7 +50,7 @@ const installedLibPathlibModelicaIO = if _libPathlibModelicaIO !== nothing
   _libPathlibModelicaIO
 else
   if libPathlibModelicaIO === nothing
-    throw("omc sim runtime not found")
+    @error "omc runtime for I/O not found"
   end
   libPathlibModelicaIO
 end
@@ -61,7 +61,7 @@ const installedLibPathlibModelicaExternalC = if _libPathlibModelicaExternalC !==
   _libPathlibModelicaExternalC
 else
   if libPathlibModelicaExternalC === nothing
-    throw("omc sim runtime not found")
+    @error "omc runtime for external C not found"
   end
   libPathlibModelicaExternalC
 end

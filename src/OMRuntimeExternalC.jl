@@ -35,7 +35,12 @@ end
 
 function __init__()
   local sep = Sys.iswindows() ? ';' : ':'
-  Base._setenv("PATH", ENV["PATH"] * sep * splitdir(installedLibPath)[1])
+  try
+    Base._setenv("PATH", ENV["PATH"] * sep * splitdir(installedLibPath)[1])
+  catch
+    @warn "Failed to setup the environment correctly. Make sure that you have the correct shared libraries installed."
+    @warn "NOTE: If your Modelica model use certain premade functions your simulation might fail. However, you may still use this software for other models that does not make use of these constructs."
+  end
   nothing
 end
 #=Include Paths =#
