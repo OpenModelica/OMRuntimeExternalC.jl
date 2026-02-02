@@ -58,9 +58,9 @@ const PATH_TO_EXT = realpath("$(pwd())/../lib/ext")
   downloadAndextractTar("x86_64-mingw32";
                         URL="https://build.openmodelica.org/omc/julia/x86_64-mingw32.zip")
 elseif Sys.islinux()
-  throw("Linux not yet supported")
+  @warn "Linux binaries not yet available for automatic download. External C libraries will need to be provided manually."
 elseif Sys.isapple()
-  throw("Apple not yet supported")
+  @warn "macOS binaries not yet available for automatic download. External C libraries will need to be provided manually."
 else#= Throw error for other variants =#
   @error "Non Linux/Windows systems are currently not supported"
   throw("Unsupported system error")
