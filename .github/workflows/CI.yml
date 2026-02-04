@@ -1,0 +1,53 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    tags: '*'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            version: '1.10'
+          - os: ubuntu-latest
+            version: '1.10'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+
+      - name: Cache Julia artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-julia-${{ matrix.version }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-julia-${{ matrix.version }}-
+
+      - name: Install dependencies and build
+        shell: bash
+        run: |
+          julia --color=yes --project -e '
+            import Pkg
+            Pkg.Registry.add("General")
+            Pkg.instantiate()
+            Pkg.build()
+          '
+
+      - name: Run tests
+        shell: bash
+        run: |
+          julia --color=yes --project -e '
+            import Pkg
+            Pkg.test()
+          '
