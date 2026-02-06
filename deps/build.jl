@@ -1,11 +1,19 @@
-@info "Building OMRuntimeExternal C"
+@info "Building OMRuntimeExternalC"
 
-import Inflate
-import Tar
+using HTTP
 import ZipFile
+
+const DEPS_DIR = @__DIR__
+const PACKAGE_DIR = dirname(DEPS_DIR)
+const PATH_TO_EXT = joinpath(PACKAGE_DIR, "lib", "ext")
+const RELEASE_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0"
 
 function downloadAndExtractLibraries(libraryString; URL)
   @info "Downloading archive from $(URL)..."
+
+  #= Ensure the lib/ext directory exists =#
+  mkpath(PATH_TO_EXT)
+
   local zipPath = joinpath(PATH_TO_EXT, libraryString * ".zip")
   HTTP.download(URL, zipPath)
 
@@ -33,12 +41,6 @@ function downloadAndExtractLibraries(libraryString; URL)
 
   @info "Successfully extracted libraries to $(sharedDir)/$(libraryString)/"
 end
-
-
-using HTTP
-#=Extern path=#
-const PATH_TO_EXT = realpath("$(pwd())/../lib/ext")
-const RELEASE_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0"
 
 @static if Sys.iswindows()
   downloadAndExtractLibraries("x86_64-mingw32";

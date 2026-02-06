@@ -40,7 +40,7 @@ function ModelicaStandardTables_CombiTable1D_init2(
   extrapolation::Int64,
   verbose::Integer)
   #= Requires Julia > 1.9 =#
-  local tableM = stack(table)
+  local tableM = stack(table; dims=1)
   ModelicaStandardTables_CombiTable1D_init2(
     fileName,
     tableName,

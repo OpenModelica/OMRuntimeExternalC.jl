@@ -1,8 +1,10 @@
-const INSTALLATION_DIRECTORY_PATH = realpath(realpath(dirname(Base.find_package("OMRuntimeExternalC")) * "/../"))
-#@show INSTALLATION_DIRECTORY_PATH
-#Shared path
-const SHARED_DIRECTORY_PATH = realpath(string(INSTALLATION_DIRECTORY_PATH, "/lib/ext"))
-#@show SHARED_DIRECTORY_PATH
+const INSTALLATION_DIRECTORY_PATH = let
+  pkgfile = Base.find_package("OMRuntimeExternalC")
+  pkgfile === nothing ? "" : dirname(dirname(pkgfile))
+end
+
+#= Shared path - use joinpath instead of realpath to avoid errors if directory does not exist =#
+const SHARED_DIRECTORY_PATH = joinpath(INSTALLATION_DIRECTORY_PATH, "lib", "ext")
 
 const _libpath = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "ModelicaStandardTables", "lib")
 #@show _libpath

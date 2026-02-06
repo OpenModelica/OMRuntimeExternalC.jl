@@ -1,6 +1,7 @@
 module OMRuntimeExternalC
 
 import Glob
+import Libdl
 
 """
   This function finds libraries built by the user or by the CI
@@ -34,12 +35,23 @@ function locateSharedParserLibrary(directoryToSearchIn, libraryName, relativeDir
 end
 
 function __init__()
-  local sep = Sys.iswindows() ? ';' : ':'
   try
-    Base._setenv("PATH", ENV["PATH"] * sep * splitdir(installedLibPath)[1])
+    if installedLibPath !== nothing
+      local libdir = splitdir(installedLibPath)[1]
+      if Sys.iswindows()
+        #= On Windows, add to PATH for DLL search =#
+        Base._setenv("PATH", ENV["PATH"] * ";" * libdir)
+      else
+        #= On Linux/macOS, add to both DL_LOAD_PATH and LD_LIBRARY_PATH =#
+        push!(Libdl.DL_LOAD_PATH, libdir)
+        #= Also set LD_LIBRARY_PATH for library dependencies loaded by the system linker =#
+        local ldpath = get(ENV, "LD_LIBRARY_PATH", "")
+        ENV["LD_LIBRARY_PATH"] = isempty(ldpath) ? libdir : libdir * ":" * ldpath
+      end
+    end
   catch
     @warn "Failed to setup the environment correctly. Make sure that you have the correct shared libraries installed."
-    @warn "NOTE: If your Modelica model use certain premade functions your simulation might fail. However, you may still use this software for other models that does not make use of these constructs."
+    @warn "NOTE: If your Modelica model uses certain external functions your simulation might fail."
   end
   nothing
 end
