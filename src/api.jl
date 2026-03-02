@@ -280,3 +280,673 @@ function ModelicaStrings_length(string::String)
               (Cstring,),
               string)
 end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable1D_getDer2Value(void* tableID, int icol,
+                                                                        double u, double der_u, double der2_u);
+"""
+function ModelicaStandardTables_CombiTable1D_getDer2Value(
+  tableID::Ptr{Cvoid},
+  icol::Cint,
+  u::Cdouble,
+  der_u::Cdouble,
+  der2_u::Cdouble,
+  )::Cdouble
+end
+
+"""
+ModelicaStandardTables_CombiTable1D_getDer2Value(
+  tableID::ExternalCombiTable1D,
+  icol::Int64,
+  u::Float64,
+  der_u::Float64,
+  der2_u::Float64,
+  )
+"""
+function ModelicaStandardTables_CombiTable1D_getDer2Value(
+  tableID::ExternalCombiTable1D,
+  icol::Int64,
+  u::Float64,
+  der_u::Float64,
+  der2_u::Float64,
+  )
+  local res = 0.0
+  try
+    res = ccall((:ModelicaStandardTables_CombiTable1D_getDer2Value, installedLibPath),
+                Cdouble #= Returns =#,
+                (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble),
+                tableID, icol, u, der_u, der2_u)
+  catch e
+    @error "Calling ModelicaStandardTables_CombiTable1D_getDer2Value. Check that icol is within the bounds of the table" icol
+  end
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable1D_read(void* tableID, int force, int verbose);
+"""
+function ModelicaStandardTables_CombiTable1D_read(tableID::Ptr{Cvoid}, force::Cint, verbose::Cint)::Cdouble
+end
+
+"""
+ModelicaStandardTables_CombiTable1D_read(tableID::ExternalCombiTable1D, force::Int64, verbose::Int64)
+"""
+function ModelicaStandardTables_CombiTable1D_read(tableID::ExternalCombiTable1D, force::Int64, verbose::Int64)
+  res = ccall((:ModelicaStandardTables_CombiTable1D_read, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cint, Cint),
+              tableID, force, verbose)
+  return res
+end
+
+#= ================================================================ =#
+#=  CombiTimeTable                                                  =#
+#= ================================================================ =#
+
+const ExternalCombiTimeTable = Ptr{Nothing}
+
+"""
+MODELICA_EXPORT void* ModelicaStandardTables_CombiTimeTable_init2(
+  _In_z_ const char* fileName,
+  _In_z_ const char* tableName,
+  _In_ double* table,
+  size_t nRow,
+  size_t nColumn,
+  double startTime,
+  _In_ int* columns,
+  size_t nCols,
+  int smoothness,
+  int extrapolation,
+  double shiftTime,
+  int timeEvents,
+  int verbose) MODELICA_NONNULLATTR;
+"""
+function ModelicaStandardTables_CombiTimeTable_init2(
+  fileName::Cstring,
+  tableName::Cstring,
+  table::Ptr{Cdouble},
+  nRow::Csize_t,
+  nColumn::Csize_t,
+  startTime::Cdouble,
+  columns::Ptr{Cint},
+  nCols::Csize_t,
+  smoothness::Cint,
+  extrapolation::Cint,
+  shiftTime::Cdouble,
+  timeEvents::Cint,
+  verbose::Cint)::Ptr{Cvoid}
+end
+
+function ModelicaStandardTables_CombiTimeTable_init2(
+  fileName::String,
+  tableName::String,
+  table::Vector{Vector{Float64}},
+  nRow::Int64,
+  nColumn::Int64,
+  startTime::Float64,
+  columns::Vector{Int64},
+  nCols::Int64,
+  smoothness::Int64,
+  extrapolation::Int64,
+  shiftTime::Float64,
+  timeEvents::Int64,
+  verbose::Integer)
+  #= Requires Julia > 1.9 =#
+  local tableM = stack(table; dims=1)
+  ModelicaStandardTables_CombiTimeTable_init2(
+    fileName, tableName, tableM,
+    nRow, nColumn, startTime,
+    columns, nCols,
+    smoothness, extrapolation, shiftTime, timeEvents, verbose)
+end
+
+function ModelicaStandardTables_CombiTimeTable_init2(
+  fileName::String,
+  tableName::String,
+  table::Matrix{Float64},
+  nRow::Int64,
+  nColumn::Int64,
+  startTime::Float64,
+  columns::Vector{Int64},
+  nCols::Int64,
+  smoothness::Int64,
+  extrapolation::Int64,
+  shiftTime::Float64,
+  timeEvents::Int64,
+  verbose::Integer)
+  #= Converts the table into the C format, that is double* =#
+  local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
+  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init2, installedLibPath), Ptr{Cvoid},
+                (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t, Cint, Cint, Cdouble, Cint, Cint),
+                    fileName, tableName, tableCShape, nRow, nColumn, startTime, columns, nCols, smoothness, extrapolation, shiftTime, timeEvents, verbose)
+  res
+end
+
+"""
+void ModelicaStandardTables_CombiTimeTable_close(void* tableID)
+"""
+function ModelicaStandardTables_CombiTimeTable_close(_tableID::Ptr)
+end
+
+function ModelicaStandardTables_CombiTimeTable_close(tableID::ExternalCombiTimeTable)
+  ccall(
+    (:ModelicaStandardTables_CombiTimeTable_close, installedLibPath),
+    Cvoid #= Returns =#,
+    (Ptr{Cvoid},),
+    tableID)
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_getValue(void* tableID, int icol,
+                                                                      double t, double nextTimeEvent, double preNextTimeEvent);
+"""
+function ModelicaStandardTables_CombiTimeTable_getValue(
+  tableID::Ptr{Cvoid},
+  icol::Cint,
+  t::Cdouble,
+  nextTimeEvent::Cdouble,
+  preNextTimeEvent::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTimeTable_getValue(
+  tableID::ExternalCombiTimeTable,
+  icol::Int64,
+  t::Float64,
+  nextTimeEvent::Float64,
+  preNextTimeEvent::Float64,
+  )::Float64
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_getValue, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble),
+              tableID, icol, t, nextTimeEvent, preNextTimeEvent)
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_getDerValue(void* tableID, int icol,
+                                                                         double t, double nextTimeEvent, double preNextTimeEvent, double der_t);
+"""
+function ModelicaStandardTables_CombiTimeTable_getDerValue(
+  tableID::Ptr{Cvoid},
+  icol::Cint,
+  t::Cdouble,
+  nextTimeEvent::Cdouble,
+  preNextTimeEvent::Cdouble,
+  der_t::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTimeTable_getDerValue(
+  tableID::ExternalCombiTimeTable,
+  icol::Int64,
+  t::Float64,
+  nextTimeEvent::Float64,
+  preNextTimeEvent::Float64,
+  der_t::Float64,
+  )
+  local res = 0.0
+  try
+    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDerValue, installedLibPath),
+                Cdouble #= Returns =#,
+                (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble, Cdouble),
+                tableID, icol, t, nextTimeEvent, preNextTimeEvent, der_t)
+  catch e
+    @error "Calling ModelicaStandardTables_CombiTimeTable_getDerValue. Check that icol is within the bounds of the table" icol
+  end
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_getDer2Value(void* tableID, int icol,
+                                                                          double t, double nextTimeEvent, double preNextTimeEvent,
+                                                                          double der_t, double der2_t);
+"""
+function ModelicaStandardTables_CombiTimeTable_getDer2Value(
+  tableID::Ptr{Cvoid},
+  icol::Cint,
+  t::Cdouble,
+  nextTimeEvent::Cdouble,
+  preNextTimeEvent::Cdouble,
+  der_t::Cdouble,
+  der2_t::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTimeTable_getDer2Value(
+  tableID::ExternalCombiTimeTable,
+  icol::Int64,
+  t::Float64,
+  nextTimeEvent::Float64,
+  preNextTimeEvent::Float64,
+  der_t::Float64,
+  der2_t::Float64,
+  )
+  local res = 0.0
+  try
+    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDer2Value, installedLibPath),
+                Cdouble #= Returns =#,
+                (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
+                tableID, icol, t, nextTimeEvent, preNextTimeEvent, der_t, der2_t)
+  catch e
+    @error "Calling ModelicaStandardTables_CombiTimeTable_getDer2Value. Check that icol is within the bounds of the table" icol
+  end
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_minimumTime(void* tableID);
+"""
+function ModelicaStandardTables_CombiTimeTable_minimumTime(arg::Ptr)
+end
+
+function ModelicaStandardTables_CombiTimeTable_minimumTime(tableID::ExternalCombiTimeTable)::Float64
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+              #= Returns =# Cdouble,
+              (Ptr{Cvoid},),
+              tableID)
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_maximumTime(void* tableID);
+"""
+function ModelicaStandardTables_CombiTimeTable_maximumTime(arg::Ptr)
+end
+
+function ModelicaStandardTables_CombiTimeTable_maximumTime(tableID::ExternalCombiTimeTable)::Float64
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_maximumTime, installedLibPath),
+              #= Returns =# Cdouble,
+              (Ptr{Cvoid},),
+              tableID)
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_nextTimeEvent(void* tableID, double t);
+"""
+function ModelicaStandardTables_CombiTimeTable_nextTimeEvent(arg::Ptr, t::Cdouble)::Cdouble
+end
+
+function ModelicaStandardTables_CombiTimeTable_nextTimeEvent(tableID::ExternalCombiTimeTable, t::Float64)::Float64
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+              #= Returns =# Cdouble,
+              (Ptr{Cvoid}, Cdouble),
+              tableID, t)
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_read(void* tableID, int force, int verbose);
+"""
+function ModelicaStandardTables_CombiTimeTable_read(tableID::Ptr{Cvoid}, force::Cint, verbose::Cint)::Cdouble
+end
+
+function ModelicaStandardTables_CombiTimeTable_read(tableID::ExternalCombiTimeTable, force::Int64, verbose::Int64)
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_read, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cint, Cint),
+              tableID, force, verbose)
+  return res
+end
+
+#= ================================================================ =#
+#=  CombiTable2D                                                    =#
+#= ================================================================ =#
+
+const ExternalCombiTable2D = Ptr{Nothing}
+
+"""
+MODELICA_EXPORT void* ModelicaStandardTables_CombiTable2D_init2(
+  _In_z_ const char* fileName,
+  _In_z_ const char* tableName,
+  _In_ double* table,
+  size_t nRow,
+  size_t nColumn,
+  int smoothness,
+  int extrapolation,
+  int verbose) MODELICA_NONNULLATTR;
+"""
+function ModelicaStandardTables_CombiTable2D_init2(
+  fileName::Cstring,
+  tableName::Cstring,
+  table::Ptr{Cdouble},
+  nRow::Csize_t,
+  nColumn::Csize_t,
+  smoothness::Cint,
+  extrapolation::Cint,
+  verbose::Cint)::Ptr{Cvoid}
+end
+
+function ModelicaStandardTables_CombiTable2D_init2(
+  fileName::String,
+  tableName::String,
+  table::Vector{Vector{Float64}},
+  nRow::Int64,
+  nColumn::Int64,
+  smoothness::Int64,
+  extrapolation::Int64,
+  verbose::Integer)
+  #= Requires Julia > 1.9 =#
+  local tableM = stack(table; dims=1)
+  ModelicaStandardTables_CombiTable2D_init2(
+    fileName, tableName, tableM,
+    nRow, nColumn,
+    smoothness, extrapolation, verbose)
+end
+
+function ModelicaStandardTables_CombiTable2D_init2(
+  fileName::String,
+  tableName::String,
+  table::Matrix{Float64},
+  nRow::Int64,
+  nColumn::Int64,
+  smoothness::Int64,
+  extrapolation::Int64,
+  verbose::Integer)
+  #= Converts the table into the C format, that is double* =#
+  local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
+  local res = ccall((:ModelicaStandardTables_CombiTable2D_init2, installedLibPath), Ptr{Cvoid},
+                (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint),
+                    fileName, tableName, tableCShape, nRow, nColumn, smoothness, extrapolation, verbose)
+  res
+end
+
+"""
+void ModelicaStandardTables_CombiTable2D_close(void* tableID)
+"""
+function ModelicaStandardTables_CombiTable2D_close(_tableID::Ptr)
+end
+
+function ModelicaStandardTables_CombiTable2D_close(tableID::ExternalCombiTable2D)
+  ccall(
+    (:ModelicaStandardTables_CombiTable2D_close, installedLibPath),
+    Cvoid #= Returns =#,
+    (Ptr{Cvoid},),
+    tableID)
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable2D_getValue(void* tableID, double u1, double u2);
+"""
+function ModelicaStandardTables_CombiTable2D_getValue(
+  arg::Ptr,
+  u1::Cdouble,
+  u2::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTable2D_getValue(
+  tableID::ExternalCombiTable2D,
+  u1::Float64,
+  u2::Float64,
+  )::Float64
+  res = ccall((:ModelicaStandardTables_CombiTable2D_getValue, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cdouble, Cdouble),
+              tableID, u1, u2)
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable2D_getDerValue(void* tableID,
+                                                                       double u1, double u2, double der_u1, double der_u2);
+"""
+function ModelicaStandardTables_CombiTable2D_getDerValue(
+  arg::Ptr,
+  u1::Cdouble,
+  u2::Cdouble,
+  der_u1::Cdouble,
+  der_u2::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTable2D_getDerValue(
+  tableID::ExternalCombiTable2D,
+  u1::Float64,
+  u2::Float64,
+  der_u1::Float64,
+  der_u2::Float64,
+  )
+  local res = 0.0
+  try
+    res = ccall((:ModelicaStandardTables_CombiTable2D_getDerValue, installedLibPath),
+                Cdouble #= Returns =#,
+                (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Cdouble),
+                tableID, u1, u2, der_u1, der_u2)
+  catch e
+    @error "Calling ModelicaStandardTables_CombiTable2D_getDerValue" u1 u2
+  end
+  return res
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable2D_getDer2Value(void* tableID,
+                                                                        double u1, double u2, double der_u1, double der_u2,
+                                                                        double der2_u1, double der2_u2);
+"""
+function ModelicaStandardTables_CombiTable2D_getDer2Value(
+  arg::Ptr,
+  u1::Cdouble,
+  u2::Cdouble,
+  der_u1::Cdouble,
+  der_u2::Cdouble,
+  der2_u1::Cdouble,
+  der2_u2::Cdouble,
+  )::Cdouble
+end
+
+function ModelicaStandardTables_CombiTable2D_getDer2Value(
+  tableID::ExternalCombiTable2D,
+  u1::Float64,
+  u2::Float64,
+  der_u1::Float64,
+  der_u2::Float64,
+  der2_u1::Float64,
+  der2_u2::Float64,
+  )
+  local res = 0.0
+  try
+    res = ccall((:ModelicaStandardTables_CombiTable2D_getDer2Value, installedLibPath),
+                Cdouble #= Returns =#,
+                (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
+                tableID, u1, u2, der_u1, der_u2, der2_u1, der2_u2)
+  catch e
+    @error "Calling ModelicaStandardTables_CombiTable2D_getDer2Value" u1 u2
+  end
+  return res
+end
+
+"""
+MODELICA_EXPORT void ModelicaStandardTables_CombiTable2D_minimumAbscissa(void* tableID, double* uMin);
+  Writes two doubles to uMin: uMin[0] = min of u1 axis, uMin[1] = min of u2 axis.
+"""
+function ModelicaStandardTables_CombiTable2D_minimumAbscissa(arg::Ptr)
+end
+
+function ModelicaStandardTables_CombiTable2D_minimumAbscissa(tableID::ExternalCombiTable2D)
+  uMin = zeros(Cdouble, 2)
+  ccall((:ModelicaStandardTables_CombiTable2D_minimumAbscissa, installedLibPath),
+        Cvoid #= Returns =#,
+        (Ptr{Cvoid}, Ptr{Cdouble}),
+        tableID, uMin)
+  return (uMin[1], uMin[2])
+end
+
+"""
+MODELICA_EXPORT void ModelicaStandardTables_CombiTable2D_maximumAbscissa(void* tableID, double* uMax);
+  Writes two doubles to uMax: uMax[0] = max of u1 axis, uMax[1] = max of u2 axis.
+"""
+function ModelicaStandardTables_CombiTable2D_maximumAbscissa(arg::Ptr)
+end
+
+function ModelicaStandardTables_CombiTable2D_maximumAbscissa(tableID::ExternalCombiTable2D)
+  uMax = zeros(Cdouble, 2)
+  ccall((:ModelicaStandardTables_CombiTable2D_maximumAbscissa, installedLibPath),
+        Cvoid #= Returns =#,
+        (Ptr{Cvoid}, Ptr{Cdouble}),
+        tableID, uMax)
+  return (uMax[1], uMax[2])
+end
+
+"""
+MODELICA_EXPORT double ModelicaStandardTables_CombiTable2D_read(void* tableID, int force, int verbose);
+"""
+function ModelicaStandardTables_CombiTable2D_read(tableID::Ptr{Cvoid}, force::Cint, verbose::Cint)::Cdouble
+end
+
+function ModelicaStandardTables_CombiTable2D_read(tableID::ExternalCombiTable2D, force::Int64, verbose::Int64)
+  res = ccall((:ModelicaStandardTables_CombiTable2D_read, installedLibPath),
+              Cdouble #= Returns =#,
+              (Ptr{Cvoid}, Cint, Cint),
+              tableID, force, verbose)
+  return res
+end
+
+#= ================================================================ =#
+#=  ModelicaStrings - Additional functions                          =#
+#= ================================================================ =#
+
+"""
+MODELICA_EXPORT const char* ModelicaStrings_substring(_In_z_ const char* string, int startIndex, int endIndex);
+"""
+function ModelicaStrings_substring(string::Ptr{Cchar}, startIndex::Cint, endIndex::Cint)
+end
+
+"""
+ModelicaStrings_substring(string::String, startIndex::Int64, endIndex::Int64)
+  Returns the substring from startIndex to endIndex (1-based, inclusive).
+"""
+function ModelicaStrings_substring(string::String, startIndex::Int64, endIndex::Int64)
+  res = ccall((:ModelicaStrings_substring, installedLibPathlibModelicaExternalC),
+              #= Returns =# Cstring,
+              (Cstring, Cint, Cint),
+              string, startIndex, endIndex)
+  return unsafe_string(res)
+end
+
+"""
+MODELICA_EXPORT int ModelicaStrings_compare(_In_z_ const char* string1, _In_z_ const char* string2, int caseSensitive);
+"""
+function ModelicaStrings_compare(string1::Ptr{Cchar}, string2::Ptr{Cchar}, caseSensitive::Cint)
+end
+
+"""
+ModelicaStrings_compare(string1::String, string2::String, caseSensitive::Int64)
+  Compares two strings. Returns 1 if string1 < string2, 2 if equal, 3 if string1 > string2.
+"""
+function ModelicaStrings_compare(string1::String, string2::String, caseSensitive::Int64)
+  res = ccall((:ModelicaStrings_compare, installedLibPathlibModelicaExternalC),
+              #= Returns =# Cint,
+              (Cstring, Cstring, Cint),
+              string1, string2, caseSensitive)
+  return Int64(res)
+end
+
+"""
+MODELICA_EXPORT void ModelicaStrings_scanIdentifier(_In_z_ const char* string, int startIndex,
+                                                     int* nextIndex, const char** identifier);
+"""
+function ModelicaStrings_scanIdentifier(string::Ptr{Cchar}, startIndex::Cint)
+end
+
+"""
+ModelicaStrings_scanIdentifier(string::String, startIndex::Int64)
+  Scans for an identifier starting at startIndex.
+  Returns (nextIndex, identifier).
+"""
+function ModelicaStrings_scanIdentifier(string::String, startIndex::Int64)
+  nextIndex = Ref{Cint}(0)
+  identifier = Ref{Cstring}(C_NULL)
+  ccall((:ModelicaStrings_scanIdentifier, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
+        string, startIndex, nextIndex, identifier)
+  local idStr = identifier[] == C_NULL ? "" : unsafe_string(identifier[])
+  return (Int64(nextIndex[]), idStr)
+end
+
+"""
+MODELICA_EXPORT void ModelicaStrings_scanInteger(_In_z_ const char* string, int startIndex,
+                                                  int unsignedNumber, int* nextIndex, int* integerNumber);
+"""
+function ModelicaStrings_scanInteger(string::Ptr{Cchar}, startIndex::Cint, unsignedNumber::Cint)
+end
+
+"""
+ModelicaStrings_scanInteger(string::String, startIndex::Int64, unsignedNumber::Int64)
+  Scans for an integer starting at startIndex.
+  If unsignedNumber != 0, only unsigned integers are recognized.
+  Returns (nextIndex, integerNumber).
+"""
+function ModelicaStrings_scanInteger(string::String, startIndex::Int64, unsignedNumber::Int64)
+  nextIndex = Ref{Cint}(0)
+  integerNumber = Ref{Cint}(0)
+  ccall((:ModelicaStrings_scanInteger, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Cint, Ref{Cint}, Ref{Cint}),
+        string, startIndex, unsignedNumber, nextIndex, integerNumber)
+  return (Int64(nextIndex[]), Int64(integerNumber[]))
+end
+
+"""
+MODELICA_EXPORT void ModelicaStrings_scanReal(_In_z_ const char* string, int startIndex,
+                                               int unsignedNumber, int* nextIndex, double* number);
+"""
+function ModelicaStrings_scanReal(string::Ptr{Cchar}, startIndex::Cint, unsignedNumber::Cint)
+end
+
+"""
+ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int64)
+  Scans for a real number starting at startIndex.
+  If unsignedNumber != 0, only unsigned numbers are recognized.
+  Returns (nextIndex, number).
+"""
+function ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int64)
+  nextIndex = Ref{Cint}(0)
+  number = Ref{Cdouble}(0.0)
+  ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
+        string, startIndex, unsignedNumber, nextIndex, number)
+  return (Int64(nextIndex[]), Float64(number[]))
+end
+
+"""
+MODELICA_EXPORT void ModelicaStrings_scanString(_In_z_ const char* string, int startIndex,
+                                                 int* nextIndex, const char** result);
+"""
+function ModelicaStrings_scanString(string::Ptr{Cchar}, startIndex::Cint)
+end
+
+"""
+ModelicaStrings_scanString(string::String, startIndex::Int64)
+  Scans for a quoted string starting at startIndex.
+  Returns (nextIndex, result).
+"""
+function ModelicaStrings_scanString(string::String, startIndex::Int64)
+  nextIndex = Ref{Cint}(0)
+  result = Ref{Cstring}(C_NULL)
+  ccall((:ModelicaStrings_scanString, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
+        string, startIndex, nextIndex, result)
+  local resStr = result[] == C_NULL ? "" : unsafe_string(result[])
+  return (Int64(nextIndex[]), resStr)
+end
+
+"""
+MODELICA_EXPORT int ModelicaStrings_hashString(_In_z_ const char* str);
+"""
+function ModelicaStrings_hashString(string::Ptr{Cchar})
+end
+
+"""
+ModelicaStrings_hashString(string::String)
+  Returns a hash value for the given string.
+"""
+function ModelicaStrings_hashString(string::String)
+  res = ccall((:ModelicaStrings_hashString, installedLibPathlibModelicaExternalC),
+              #= Returns =# Cint,
+              (Cstring,),
+              string)
+  return Int64(res)
+end
