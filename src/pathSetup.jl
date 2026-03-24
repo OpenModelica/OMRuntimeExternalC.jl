@@ -67,3 +67,14 @@ else
   end
   libPathlibModelicaExternalC
 end
+
+const _libPathlibModelicaCallbacks = locateSharedParserLibrary(INSTALLATION_DIRECTORY_PATH, "ModelicaCallbacks", "lib")
+const libPathlibModelicaCallbacks = locateSharedParserLibrary(SHARED_DIRECTORY_PATH, "ModelicaCallbacks", "shared")
+const installedLibPathlibModelicaCallbacks = if _libPathlibModelicaCallbacks !== nothing
+  _libPathlibModelicaCallbacks
+else
+  if libPathlibModelicaCallbacks === nothing
+    @warn "ModelicaCallbacks shim not found (error handling in external C functions may segfault)"
+  end
+  libPathlibModelicaCallbacks
+end
