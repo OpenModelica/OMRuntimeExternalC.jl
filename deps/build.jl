@@ -42,16 +42,54 @@ function downloadAndExtractLibraries(libraryString; URL)
   @info "Successfully extracted libraries to $(sharedDir)/$(libraryString)/"
 end
 
+function buildModelicaCallbacks(libSubdir::String)
+  local srcFile = joinpath(PACKAGE_DIR, "src", "modelica_callbacks.c")
+  local outDir = joinpath(PATH_TO_EXT, "shared", libSubdir)
+  mkpath(outDir)
+
+  local ext, compileCmd
+  if Sys.islinux()
+    ext = ".so"
+    compileCmd = `gcc -shared -fPIC -o $(joinpath(outDir, "libModelicaCallbacks$ext")) $srcFile -ldl`
+  elseif Sys.isapple()
+    ext = ".dylib"
+    compileCmd = `cc -dynamiclib -fPIC -o $(joinpath(outDir, "libModelicaCallbacks$ext")) $srcFile -ldl`
+  elseif Sys.iswindows()
+    ext = ".dll"
+    compileCmd = `gcc -shared -o $(joinpath(outDir, "libModelicaCallbacks$ext")) $srcFile`
+  else
+    @warn "Cannot build ModelicaCallbacks: unsupported platform"
+    return
+  end
+
+  local outFile = joinpath(outDir, "libModelicaCallbacks$ext")
+  if isfile(outFile)
+    @info "ModelicaCallbacks shim already exists at $outFile"
+    return
+  end
+
+  @info "Compiling ModelicaCallbacks shim..."
+  try
+    run(compileCmd)
+    @info "Successfully built $outFile"
+  catch e
+    @warn "Failed to compile ModelicaCallbacks shim: $e"
+    @warn "External C functions (ModelicaIO, ModelicaInternal) may not handle errors safely."
+  end
+end
+
 @static if Sys.iswindows()
   downloadAndExtractLibraries("x86_64-mingw32";
                               URL="$(RELEASE_BASE_URL)/x86_64-mingw32.zip")
+  buildModelicaCallbacks("x86_64-mingw32")
 elseif Sys.islinux()
   downloadAndExtractLibraries("x86_64-linux-gnu";
                               URL="$(RELEASE_BASE_URL)/x86_64-linux-gnu.zip")
+  buildModelicaCallbacks("x86_64-linux-gnu")
 elseif Sys.isapple()
-  @warn "macOS is currently not supported due to dylib path issues in the OpenModelica build system."
-  @warn "See: https://trac.openmodelica.org/OpenModelica/ticket/4647"
-  @warn "Some functionality requiring external C libraries will not be available."
+  @warn "macOS: Modelica external C libraries are not yet available."
+  local arch = Sys.ARCH == :aarch64 ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
+  buildModelicaCallbacks(arch)
 else
   @warn "This platform is not supported."
   @warn "Some functionality requiring external C libraries will not be available."
