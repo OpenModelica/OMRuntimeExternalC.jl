@@ -2,29 +2,29 @@
 
 using HTTP
 import ZipFile
+import Tar
+import Inflate
 
 const DEPS_DIR = @__DIR__
 const PACKAGE_DIR = dirname(DEPS_DIR)
 const PATH_TO_EXT = joinpath(PACKAGE_DIR, "lib", "ext")
 const RELEASE_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0"
+const CALLBACKS_VERSION = "v0.1.0"
+const CALLBACKS_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/$(CALLBACKS_VERSION)"
 
 function downloadAndExtractLibraries(libraryString; URL)
   @info "Downloading archive from $(URL)..."
-
-  #= Ensure the lib/ext directory exists =#
   mkpath(PATH_TO_EXT)
 
   local zipPath = joinpath(PATH_TO_EXT, libraryString * ".zip")
   HTTP.download(URL, zipPath)
 
-  #= Create shared directory if it does not exist =#
   local sharedDir = joinpath(PATH_TO_EXT, "shared")
   mkpath(sharedDir)
 
   @info "Extracting to $(sharedDir)..."
   r = ZipFile.Reader(zipPath)
   for f in r.files
-    #= Skip directory entries =#
     if endswith(f.name, "/")
       continue
     end
@@ -35,14 +35,40 @@ function downloadAndExtractLibraries(libraryString; URL)
     write(outPath, read(f))
   end
   close(r)
-
-  #= Clean up the zip file =#
   rm(zipPath)
 
   @info "Successfully extracted libraries to $(sharedDir)/$(libraryString)/"
 end
 
-function buildModelicaCallbacks(libSubdir::String)
+function downloadCallbacksShim(libSubdir::String)
+  local url = "$(CALLBACKS_BASE_URL)/$(libSubdir)-callbacks.tar.gz"
+  local outDir = joinpath(PATH_TO_EXT, "shared", libSubdir)
+  mkpath(outDir)
+
+  local ext = Sys.iswindows() ? ".dll" : Sys.isapple() ? ".dylib" : ".so"
+  local outFile = joinpath(outDir, "libModelicaCallbacks$ext")
+  if isfile(outFile)
+    @info "ModelicaCallbacks shim already exists at $outFile"
+    return
+  end
+
+  @info "Downloading ModelicaCallbacks shim from $(url)..."
+  try
+    local tgzPath = joinpath(PATH_TO_EXT, "$(libSubdir)-callbacks.tar.gz")
+    HTTP.download(url, tgzPath)
+    open(tgzPath) do io
+      Tar.extract(Inflate.inflate_gzip(io), outDir)
+    end
+    rm(tgzPath)
+    @info "Successfully installed ModelicaCallbacks shim to $outDir"
+  catch e
+    @warn "Failed to download pre-built ModelicaCallbacks shim: $e"
+    @info "Attempting to compile from source..."
+    buildModelicaCallbacksFromSource(libSubdir)
+  end
+end
+
+function buildModelicaCallbacksFromSource(libSubdir::String)
   local srcFile = joinpath(PACKAGE_DIR, "src", "modelica_callbacks.c")
   local outDir = joinpath(PATH_TO_EXT, "shared", libSubdir)
   mkpath(outDir)
@@ -62,35 +88,26 @@ function buildModelicaCallbacks(libSubdir::String)
     return
   end
 
-  local outFile = joinpath(outDir, "libModelicaCallbacks$ext")
-  if isfile(outFile)
-    @info "ModelicaCallbacks shim already exists at $outFile"
-    return
-  end
-
-  @info "Compiling ModelicaCallbacks shim..."
   try
     run(compileCmd)
-    @info "Successfully built $outFile"
+    @info "Successfully compiled ModelicaCallbacks shim"
   catch e
     @warn "Failed to compile ModelicaCallbacks shim: $e"
-    @warn "External C functions (ModelicaIO, ModelicaInternal) may not handle errors safely."
   end
 end
 
 @static if Sys.iswindows()
   downloadAndExtractLibraries("x86_64-mingw32";
                               URL="$(RELEASE_BASE_URL)/x86_64-mingw32.zip")
-  buildModelicaCallbacks("x86_64-mingw32")
+  downloadCallbacksShim("x86_64-mingw32")
 elseif Sys.islinux()
   downloadAndExtractLibraries("x86_64-linux-gnu";
                               URL="$(RELEASE_BASE_URL)/x86_64-linux-gnu.zip")
-  buildModelicaCallbacks("x86_64-linux-gnu")
+  downloadCallbacksShim("x86_64-linux-gnu")
 elseif Sys.isapple()
   @warn "macOS: Modelica external C libraries are not yet available."
   local arch = Sys.ARCH == :aarch64 ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
-  buildModelicaCallbacks(arch)
+  downloadCallbacksShim(arch)
 else
   @warn "This platform is not supported."
-  @warn "Some functionality requiring external C libraries will not be available."
 end

@@ -1,7 +1,7 @@
 name = "OMRuntimeExternalC"
 uuid = "ada38df0-e20e-11ed-02f3-2b4b19c1ec8a"
 authors = ["Adrian Pop <adrian.pop@liu.se>", "John Tinnerholm <john.tinnerholm@liu.se>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
