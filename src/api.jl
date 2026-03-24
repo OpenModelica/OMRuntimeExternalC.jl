@@ -1,5 +1,32 @@
 #= Add functions for the Modelica External C API here. =#
 
+#= ---- Safe ccall error handling via ModelicaCallbacks shim ---- =#
+#=
+  The C shim (libModelicaCallbacks.so) provides:
+  - Replacement ModelicaFormatError/ModelicaError that use setjmp/longjmp
+    instead of the OMC runtime's uninitialized thread-local jump buffers.
+  - safe_* wrapper functions that do setjmp entirely in C, call the target
+    function via dlsym, and return 0 on success or nonzero on error.
+    Error message is retrieved via modelica_get_error_msg().
+  This avoids longjmp across Julia ccall boundaries (which is undefined behavior).
+=#
+
+"""
+    get_modelica_error()::String
+
+Retrieve the error message from the last failed safe_* call.
+"""
+function get_modelica_error()::String
+  if installedLibPathlibModelicaCallbacks === nothing
+    return "ModelicaCallbacks shim not loaded"
+  end
+  ptr = ccall(
+    (:modelica_get_error_msg, installedLibPathlibModelicaCallbacks),
+    Cstring, (),
+  )
+  return ptr == C_NULL ? "" : unsafe_string(ptr)
+end
+
 const ExternalCombiTable1D = Ptr{Nothing}
 
 """
@@ -949,4 +976,177 @@ function ModelicaStrings_hashString(string::String)
               (Cstring,),
               string)
   return Int64(res)
+end
+
+#= ---- ModelicaIO functions (via safe_* wrappers in libModelicaCallbacks) ---- =#
+
+"""
+    ModelicaIO_readMatrixSizes(fileName, matrixName) -> Vector{Int64}
+
+Read the dimensions [nrow, ncol] of a matrix stored in a MATLAB MAT file.
+"""
+function ModelicaIO_readMatrixSizes(fileName::String, matrixName::String)::Vector{Int64}
+  dim = zeros(Cint, 2)
+  rc = ccall(
+    (:safe_ModelicaIO_readMatrixSizes, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Cstring, Ptr{Cint}),
+    fileName, matrixName, dim,
+  )
+  rc != 0 && error("ModelicaIO_readMatrixSizes failed: ", get_modelica_error())
+  return Int64[dim[1], dim[2]]
+end
+
+"""
+    ModelicaIO_readRealMatrix(fileName, matrixName, nrow, ncol, verbose) -> Matrix{Float64}
+
+Read a real matrix of size nrow x ncol from a MATLAB MAT file.
+"""
+function ModelicaIO_readRealMatrix(
+  fileName::String,
+  matrixName::String,
+  nrow::Int64,
+  ncol::Int64,
+  verbose::Bool = true,
+)::Matrix{Float64}
+  buffer = zeros(Cdouble, nrow * ncol)
+  rc = ccall(
+    (:safe_ModelicaIO_readRealMatrix, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint),
+    fileName, matrixName, buffer, Csize_t(nrow), Csize_t(ncol), Cint(verbose),
+  )
+  rc != 0 && error("ModelicaIO_readRealMatrix failed: ", get_modelica_error())
+  #= C fills row-major; reshape as (ncol, nrow) then transpose for Julia column-major =#
+  return Matrix{Float64}(reshape(buffer, ncol, nrow)')
+end
+
+"""
+    ModelicaIO_writeRealMatrix(fileName, matrixName, matrix; append, version)
+
+Write a real matrix to a MATLAB MAT file.
+"""
+function ModelicaIO_writeRealMatrix(
+  fileName::String,
+  matrixName::String,
+  matrix::Matrix{Float64},
+  append::Bool = false,
+  version::String = "4",
+)::Int64
+  local nrow = size(matrix, 1)
+  local ncol = size(matrix, 2)
+  #= Convert Julia column-major to C row-major: transpose then flatten =#
+  local buffer = vec(Matrix{Float64}(matrix'))
+  rc = ccall(
+    (:safe_ModelicaIO_writeRealMatrix, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cstring),
+    fileName, matrixName, buffer, Csize_t(nrow), Csize_t(ncol), Cint(append), version,
+  )
+  rc == -1 && error("ModelicaIO_writeRealMatrix failed: ", get_modelica_error())
+  return Int64(rc)
+end
+
+#= ---- ModelicaInternal functions (via safe_* wrappers in libModelicaCallbacks) ---- =#
+
+"""
+    ModelicaInternal_print(string, fileName)
+
+Print a string to a file (append mode) or to stdout if fileName is empty.
+"""
+function ModelicaInternal_print(string::String, fileName::String)
+  rc = ccall(
+    (:safe_ModelicaInternal_print, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Cstring),
+    string, fileName,
+  )
+  rc != 0 && error("ModelicaInternal_print failed: ", get_modelica_error())
+  return nothing
+end
+
+"""
+    ModelicaInternal_readLine(fileName, lineNumber) -> (String, Bool)
+
+Read a specific line from a file. Returns (line_content, endOfFile).
+"""
+function ModelicaInternal_readLine(fileName::String, lineNumber::Int64)
+  bufPtr = Ref{Cstring}(C_NULL)
+  endOfFile = Ref{Cint}(0)
+  rc = ccall(
+    (:safe_ModelicaInternal_readLine, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Cint, Ref{Cstring}, Ref{Cint}),
+    fileName, Cint(lineNumber), bufPtr, endOfFile,
+  )
+  rc != 0 && error("ModelicaInternal_readLine failed: ", get_modelica_error())
+  local str = bufPtr[] == C_NULL ? "" : unsafe_string(bufPtr[])
+  return (str, endOfFile[] != 0)
+end
+
+"""
+    ModelicaInternal_countLines(fileName) -> Int64
+
+Count the number of lines in a file.
+"""
+function ModelicaInternal_countLines(fileName::String)::Int64
+  result = Ref{Cint}(0)
+  rc = ccall(
+    (:safe_ModelicaInternal_countLines, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Ref{Cint}),
+    fileName, result,
+  )
+  rc != 0 && error("ModelicaInternal_countLines failed: ", get_modelica_error())
+  return Int64(result[])
+end
+
+"""
+    ModelicaInternal_fullPathName(fileName) -> String
+
+Return the full (absolute) path name of a file.
+"""
+function ModelicaInternal_fullPathName(fileName::String)::String
+  result = Ref{Cstring}(C_NULL)
+  rc = ccall(
+    (:safe_ModelicaInternal_fullPathName, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Ref{Cstring}),
+    fileName, result,
+  )
+  rc != 0 && error("ModelicaInternal_fullPathName failed: ", get_modelica_error())
+  return result[] == C_NULL ? "" : unsafe_string(result[])
+end
+
+"""
+    ModelicaInternal_stat(name) -> Int64
+
+Return Modelica FileType: 1=NoFile, 2=RegularFile, 3=Directory, 4=SpecialFile.
+"""
+function ModelicaInternal_stat(name::String)::Int64
+  result = Ref{Cint}(0)
+  rc = ccall(
+    (:safe_ModelicaInternal_stat, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring, Ref{Cint}),
+    name, result,
+  )
+  rc != 0 && error("ModelicaInternal_stat failed: ", get_modelica_error())
+  return Int64(result[])
+end
+
+"""
+    ModelicaStreams_closeFile(fileName)
+
+Close a file that was opened for reading via ModelicaInternal_readLine.
+"""
+function ModelicaStreams_closeFile(fileName::String)
+  rc = ccall(
+    (:safe_ModelicaStreams_closeFile, installedLibPathlibModelicaCallbacks),
+    Cint,
+    (Cstring,),
+    fileName,
+  )
+  rc != 0 && error("ModelicaStreams_closeFile failed: ", get_modelica_error())
+  return nothing
 end

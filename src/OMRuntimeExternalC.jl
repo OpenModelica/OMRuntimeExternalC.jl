@@ -49,6 +49,19 @@ function __init__()
         ENV["LD_LIBRARY_PATH"] = isempty(ldpath) ? libdir : libdir * ":" * ldpath
       end
     end
+    #= Load the Julia-compatible ModelicaCallbacks shim FIRST with RTLD_GLOBAL
+       so it overrides the OMC setjmp/longjmp-based error handlers.
+       Then load the other libraries with RTLD_GLOBAL so their symbols are
+       visible to dlsym (used by the safe_* wrappers in the callbacks shim). =#
+    if installedLibPathlibModelicaCallbacks !== nothing
+      Libdl.dlopen(installedLibPathlibModelicaCallbacks, Libdl.RTLD_GLOBAL)
+    end
+    if installedLibPathlibModelicaIO !== nothing
+      Libdl.dlopen(installedLibPathlibModelicaIO, Libdl.RTLD_GLOBAL)
+    end
+    if installedLibPathlibModelicaExternalC !== nothing
+      Libdl.dlopen(installedLibPathlibModelicaExternalC, Libdl.RTLD_GLOBAL)
+    end
   catch
     @warn "Failed to setup the environment correctly. Make sure that you have the correct shared libraries installed."
     @warn "NOTE: If your Modelica model uses certain external functions your simulation might fail."

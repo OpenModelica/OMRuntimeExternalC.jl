@@ -318,6 +318,108 @@ const ORC = OMRuntimeExternalC
     ORC.ModelicaStandardTables_CombiTable2D_close(tableID)
   end
 
+  @testset "ModelicaIO functions" begin
+    local testMatFile = tempname() * ".mat"
+
+    @testset "writeRealMatrix and readMatrixSizes" begin
+      local mat = [1.0 2.0 3.0; 4.0 5.0 6.0]  #= 2x3 matrix =#
+      res = ORC.ModelicaIO_writeRealMatrix(testMatFile, "testMatrix", mat)
+      @test res == 1  #= C function returns 1 on success =#
+      @test isfile(testMatFile)
+
+      dims = ORC.ModelicaIO_readMatrixSizes(testMatFile, "testMatrix")
+      @test dims == [2, 3]
+    end
+
+    @testset "readRealMatrix" begin
+      local mat = ORC.ModelicaIO_readRealMatrix(testMatFile, "testMatrix", Int64(2), Int64(3))
+      @test size(mat) == (2, 3)
+      @test isapprox(mat[1, 1], 1.0, atol=1e-10)
+      @test isapprox(mat[1, 2], 2.0, atol=1e-10)
+      @test isapprox(mat[1, 3], 3.0, atol=1e-10)
+      @test isapprox(mat[2, 1], 4.0, atol=1e-10)
+      @test isapprox(mat[2, 2], 5.0, atol=1e-10)
+      @test isapprox(mat[2, 3], 6.0, atol=1e-10)
+    end
+
+    @testset "writeRealMatrix separate file" begin
+      local f2 = tempname() * ".mat"
+      res = ORC.ModelicaIO_writeRealMatrix(f2, "secondMatrix", [10.0 20.0; 30.0 40.0])
+      @test res == 1  #= C function returns 1 on success =#
+
+      dims2 = ORC.ModelicaIO_readMatrixSizes(f2, "secondMatrix")
+      @test dims2 == [2, 2]
+
+      mat2 = ORC.ModelicaIO_readRealMatrix(f2, "secondMatrix", Int64(2), Int64(2))
+      @test isapprox(mat2[1, 1], 10.0, atol=1e-10)
+      @test isapprox(mat2[2, 2], 40.0, atol=1e-10)
+      rm(f2, force=true)
+    end
+
+    @testset "roundtrip with 1x1 matrix" begin
+      local f = tempname() * ".mat"
+      ORC.ModelicaIO_writeRealMatrix(f, "scalar", [42.0;;])
+      dims = ORC.ModelicaIO_readMatrixSizes(f, "scalar")
+      @test dims == [1, 1]
+      mat = ORC.ModelicaIO_readRealMatrix(f, "scalar", Int64(1), Int64(1))
+      @test isapprox(mat[1, 1], 42.0, atol=1e-10)
+      rm(f, force=true)
+    end
+
+    rm(testMatFile, force=true)
+  end
+
+  @testset "ModelicaInternal functions" begin
+    @testset "ModelicaInternal_fullPathName" begin
+      p = ORC.ModelicaInternal_fullPathName(".")
+      @test isabspath(p)
+      @test isdir(p)
+    end
+
+    @testset "ModelicaInternal_stat" begin
+      #= Modelica FileType enum: 1=NoFile, 2=RegularFile, 3=Directory, 4=SpecialFile =#
+      @test ORC.ModelicaInternal_stat(@__FILE__) == 2   #= RegularFile =#
+      @test ORC.ModelicaInternal_stat(@__DIR__) == 3    #= Directory =#
+      @test ORC.ModelicaInternal_stat("/nonexistent_path_12345") == 1  #= NoFile =#
+    end
+
+    @testset "ModelicaInternal_print and readLine and countLines" begin
+      local f = tempname()
+      #= Write two lines using Julia IO to have a known file format =#
+      open(f, "w") do io
+        println(io, "line one")
+        println(io, "line two")
+      end
+
+      @test ORC.ModelicaInternal_countLines(f) == 2
+
+      (line1, eof1) = ORC.ModelicaInternal_readLine(f, Int64(1))
+      @test line1 == "line one"
+      @test eof1 == false
+
+      (line2, eof2) = ORC.ModelicaInternal_readLine(f, Int64(2))
+      @test line2 == "line two"
+      #= endOfFile is only true when reading PAST the last line =#
+      @test eof2 == false
+
+      (line3, eof3) = ORC.ModelicaInternal_readLine(f, Int64(3))
+      @test line3 == ""
+      @test eof3 == true
+
+      ORC.ModelicaStreams_closeFile(f)
+      rm(f, force=true)
+    end
+
+    @testset "ModelicaInternal_print to file" begin
+      local f = tempname()
+      ORC.ModelicaInternal_print("hello", f)
+      ORC.ModelicaStreams_closeFile(f)
+      @test isfile(f)
+      @test strip(read(f, String)) == "hello"
+      rm(f, force=true)
+    end
+  end
+
   @testset "ModelicaStrings functions" begin
     @testset "ModelicaStrings_length" begin
       @test ORC.ModelicaStrings_length("") == 0
