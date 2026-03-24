@@ -20,7 +20,28 @@
 #include <stdarg.h>
 #include <setjmp.h>
 #include <string.h>
-#include <dlfcn.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#  include <psapi.h>
+static void* win_find_symbol(const char* name) {
+    HANDLE process = GetCurrentProcess();
+    HMODULE modules[512];
+    DWORD needed = 0;
+    if (!EnumProcessModules(process, modules, sizeof(modules), &needed))
+        return NULL;
+    DWORD count = needed / sizeof(HMODULE);
+    for (DWORD i = 0; i < count; i++) {
+        FARPROC addr = GetProcAddress(modules[i], name);
+        if (addr) return (void*)addr;
+    }
+    return NULL;
+}
+#  define DLSYM_DEFAULT(name) win_find_symbol(name)
+#else
+#  include <dlfcn.h>
+#  define DLSYM_DEFAULT(name) dlsym(RTLD_DEFAULT, name)
+#endif
 
 /* Thread-local jump buffer and error message storage */
 static __thread jmp_buf *jmpbuf_ptr = NULL;
@@ -116,7 +137,7 @@ int safe_ModelicaIO_readMatrixSizes(
     const char* fileName, const char* matrixName, int* dim)
 {
     typedef void (*fn_t)(const char*, const char*, int*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaIO_readMatrixSizes");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaIO_readMatrixSizes");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaIO_readMatrixSizes not found");
         return 1;
@@ -138,7 +159,7 @@ int safe_ModelicaIO_readRealMatrix(
     double* matrix, size_t m, size_t n, int verbose)
 {
     typedef void (*fn_t)(const char*, const char*, double*, size_t, size_t, int);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaIO_readRealMatrix");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaIO_readRealMatrix");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaIO_readRealMatrix not found");
         return 1;
@@ -160,7 +181,7 @@ int safe_ModelicaIO_writeRealMatrix(
     double* matrix, size_t m, size_t n, int append, const char* version)
 {
     typedef int (*fn_t)(const char*, const char*, double*, size_t, size_t, int, const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaIO_writeRealMatrix");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaIO_writeRealMatrix");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaIO_writeRealMatrix not found");
         return -1;
@@ -179,7 +200,7 @@ int safe_ModelicaIO_writeRealMatrix(
 
 int safe_ModelicaInternal_print(const char* string, const char* fileName) {
     typedef void (*fn_t)(const char*, const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaInternal_print");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaInternal_print");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaInternal_print not found");
         return 1;
@@ -201,7 +222,7 @@ int safe_ModelicaInternal_readLine(
     const char** buffer, int* endOfFile)
 {
     typedef const char* (*fn_t)(const char*, int, int*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaInternal_readLine");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaInternal_readLine");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaInternal_readLine not found");
         return 1;
@@ -220,7 +241,7 @@ int safe_ModelicaInternal_readLine(
 
 int safe_ModelicaInternal_countLines(const char* fileName, int* result) {
     typedef int (*fn_t)(const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaInternal_countLines");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaInternal_countLines");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaInternal_countLines not found");
         return 1;
@@ -239,7 +260,7 @@ int safe_ModelicaInternal_countLines(const char* fileName, int* result) {
 
 int safe_ModelicaInternal_fullPathName(const char* fileName, const char** result) {
     typedef const char* (*fn_t)(const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaInternal_fullPathName");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaInternal_fullPathName");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaInternal_fullPathName not found");
         return 1;
@@ -258,7 +279,7 @@ int safe_ModelicaInternal_fullPathName(const char* fileName, const char** result
 
 int safe_ModelicaInternal_stat(const char* name, int* result) {
     typedef int (*fn_t)(const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaInternal_stat");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaInternal_stat");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaInternal_stat not found");
         return 1;
@@ -277,7 +298,7 @@ int safe_ModelicaInternal_stat(const char* name, int* result) {
 
 int safe_ModelicaStreams_closeFile(const char* fileName) {
     typedef void (*fn_t)(const char*);
-    fn_t fn = (fn_t)dlsym(RTLD_DEFAULT, "ModelicaStreams_closeFile");
+    fn_t fn = (fn_t)DLSYM_DEFAULT("ModelicaStreams_closeFile");
     if (!fn) {
         snprintf(error_msg, sizeof(error_msg), "ModelicaStreams_closeFile not found");
         return 1;

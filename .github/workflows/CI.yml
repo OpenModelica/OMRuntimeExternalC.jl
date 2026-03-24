@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p lib/ext/shared/${{ matrix.lib_subdir }}
-          gcc -shared -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.dll src/modelica_callbacks.c
+          gcc -shared -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.dll src/modelica_callbacks.c -lpsapi
 
       - name: Upload shim artifact
         uses: actions/upload-artifact@v4
