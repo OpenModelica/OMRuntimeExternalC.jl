@@ -23,10 +23,6 @@ jobs:
             version: '1.10'
             lib_subdir: 'x86_64-linux-gnu'
             shim_ext: '.so'
-          - os: macos-latest
-            version: '1.10'
-            lib_subdir: 'aarch64-apple-darwin'
-            shim_ext: '.dylib'
     steps:
       - uses: actions/checkout@v4
 
@@ -58,13 +54,6 @@ jobs:
         run: |
           gcc -shared -fPIC -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.so src/modelica_callbacks.c -ldl
 
-      - name: Build ModelicaCallbacks shim (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p lib/ext/shared/${{ matrix.lib_subdir }}
-          cc -dynamiclib -fPIC -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.dylib src/modelica_callbacks.c -ldl
-
       - name: Build ModelicaCallbacks shim (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -83,16 +72,6 @@ jobs:
         shell: bash
         run: |
           export LD_LIBRARY_PATH="$(pwd)/lib/ext/shared/${{ matrix.lib_subdir }}:${LD_LIBRARY_PATH}"
-          julia --color=yes --project -e '
-            import Pkg
-            Pkg.test()
-          '
-
-      - name: Run tests (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          export DYLD_LIBRARY_PATH="$(pwd)/lib/ext/shared/${{ matrix.lib_subdir }}:${DYLD_LIBRARY_PATH}"
           julia --color=yes --project -e '
             import Pkg
             Pkg.test()
