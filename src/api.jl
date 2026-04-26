@@ -1150,3 +1150,22 @@ function ModelicaStreams_closeFile(fileName::String)
   rc != 0 && error("ModelicaStreams_closeFile failed: ", get_modelica_error())
   return nothing
 end
+
+function ModelicaError(msg::Cstring)
+  error("Modelica runtime error: " * unsafe_string(msg))
+end
+
+function ModelicaError(msg::String)
+  error("Modelica runtime error: " * msg)
+end
+
+function ModelicaFFT_kiss_fftr(nfft::Cint, timeIn::Ptr{Cdouble}, nTime::Csize_t,
+                                f_re::Ptr{Cdouble}, f_im::Ptr{Cdouble}, nf::Csize_t)
+  error("ModelicaFFT_kiss_fftr: FFT support not compiled into this build")
+end
+
+function ModelicaRandom_xorshift1024star(state_in::Ptr{Cint}, nState_in::Csize_t,
+                                          state_out::Ptr{Cint}, nState_out::Csize_t,
+                                          result::Ptr{Cdouble})
+  error("ModelicaRandom_xorshift1024star: random support not compiled into this build")
+end
