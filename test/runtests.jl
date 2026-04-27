@@ -418,6 +418,22 @@ const ORC = OMRuntimeExternalC
       @test strip(read(f, String)) == "hello"
       rm(f, force=true)
     end
+
+    @testset "ModelicaInternal_removeFile" begin
+      #= Create a file via Julia I/O, remove it via the C wrapper, verify it is gone. =#
+      local f = tempname()
+      open(io -> println(io, "delete me"), f, "w")
+      @test isfile(f)
+      ORC.ModelicaInternal_removeFile(f)
+      @test !isfile(f)
+
+      #= A second independent file must also be removable. =#
+      local f2 = tempname()
+      open(io -> println(io, "x"), f2, "w")
+      @test isfile(f2)
+      ORC.ModelicaInternal_removeFile(f2)
+      @test !isfile(f2)
+    end
   end
 
   @testset "ModelicaStrings functions" begin
@@ -494,6 +510,136 @@ const ORC = OMRuntimeExternalC
       @test ORC.ModelicaStrings_hashString("test") == ORC.ModelicaStrings_hashString("test")
       #= Different strings should (very likely) produce different hashes =#
       @test ORC.ModelicaStrings_hashString("abc") != ORC.ModelicaStrings_hashString("def")
+    end
+  end
+
+  @testset "ModelicaRandom functions" begin
+    @testset "ModelicaRandom_xorshift64star" begin
+      #= xorshift64* state is one uint64 stored as 2 Cint words. Seed must be non-zero. =#
+      local seed = Cint[1, 0]
+      local state_in = copy(seed)
+      local state_out = zeros(Cint, 2)
+      local y = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift64star(state_in, state_out, y)
+      @test 0.0 <= y[] < 1.0
+      @test state_out != seed   #= state must evolve under one xorshift step =#
+
+      #= Reproducibility: re-running with the same seed yields the same sample and state. =#
+      local state_in2 = copy(seed)
+      local state_out2 = zeros(Cint, 2)
+      local y2 = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift64star(state_in2, state_out2, y2)
+      @test y[] == y2[]
+      @test state_out == state_out2
+
+      #= A different seed produces a different sample (extremely likely for a 64-bit RNG). =#
+      local state_in3 = Cint[2, 0]
+      local state_out3 = zeros(Cint, 2)
+      local y3 = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift64star(state_in3, state_out3, y3)
+      @test y[] != y3[]
+    end
+
+    @testset "ModelicaRandom_xorshift128plus" begin
+      #= xorshift128+ state is two uint64 words stored as 4 Cint words. =#
+      local seed = Cint[1, 0, 0, 0]
+      local state_in = copy(seed)
+      local state_out = zeros(Cint, 4)
+      local y = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift128plus(state_in, state_out, y)
+      @test 0.0 <= y[] < 1.0
+      @test state_out != seed
+
+      #= Reproducibility =#
+      local state_in2 = copy(seed)
+      local state_out2 = zeros(Cint, 4)
+      local y2 = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift128plus(state_in2, state_out2, y2)
+      @test y[] == y2[]
+      @test state_out == state_out2
+
+      #= Driving the generator forward twice produces a fresh state distinct from the seed. =#
+      local state_in_next = copy(state_out)
+      local state_out_next = zeros(Cint, 4)
+      local y_next = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift128plus(state_in_next, state_out_next, y_next)
+      @test 0.0 <= y_next[] < 1.0
+      @test state_out_next != state_out
+    end
+
+    @testset "ModelicaRandom_xorshift1024star" begin
+      #= xorshift1024* state is sixteen uint64 words (32 Cint) plus 1 Cint index. =#
+      local seed = vcat(Cint.(1:32), Cint(0))
+      local state_in = copy(seed)
+      local state_out = zeros(Cint, 33)
+      local y = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift1024star(state_in, state_out, y)
+      @test 0.0 <= y[] < 1.0
+      @test state_out != seed
+
+      #= Reproducibility =#
+      local state_in2 = copy(seed)
+      local state_out2 = zeros(Cint, 33)
+      local y2 = Ref{Cdouble}(0.0)
+      ORC.ModelicaRandom_xorshift1024star(state_in2, state_out2, y2)
+      @test y[] == y2[]
+      @test state_out == state_out2
+    end
+
+    @testset "ModelicaRandom_automaticGlobalSeed" begin
+      #= Returns an integer; should not crash with the default and explicit dummy. =#
+      local s1 = ORC.ModelicaRandom_automaticGlobalSeed()
+      local s2 = ORC.ModelicaRandom_automaticGlobalSeed(0.0)
+      @test s1 isa Int
+      @test s2 isa Int
+    end
+
+    @testset "ModelicaRandom_convertRealToIntegers" begin
+      #= IEEE 754: bits of 0.0 are all zero. =#
+      local i0 = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(0.0, i0)
+      @test i0 == Cint[0, 0]
+
+      #= Round-trip through reinterpret recovers the source double for representative values. =#
+      local i1 = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(1.0, i1)
+      @test reinterpret(Float64, i1)[1] == 1.0
+
+      local iPi = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(3.14, iPi)
+      @test reinterpret(Float64, iPi)[1] == 3.14
+
+      local iNeg = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(-2.5e3, iNeg)
+      @test reinterpret(Float64, iNeg)[1] == -2.5e3
+
+      #= Determinism: identical inputs yield identical bit patterns. =#
+      local a = zeros(Cint, 2)
+      local b = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(42.0, a)
+      ORC.ModelicaRandom_convertRealToIntegers(42.0, b)
+      @test a == b
+
+      #= Distinct inputs produce distinct bit patterns. =#
+      local c = zeros(Cint, 2)
+      ORC.ModelicaRandom_convertRealToIntegers(43.0, c)
+      @test a != c
+    end
+
+    @testset "ModelicaRandom impure xorshift1024star (set + draw)" begin
+      #= Seed the per-id internal generator, draw two samples, then re-seed and verify
+         the first sample is reproduced exactly. =#
+      local state = vcat(Cint.(1:32), Cint(0))
+      ORC.ModelicaRandom_setInternalState_xorshift1024star(state, length(state), 0)
+      local y1 = ORC.ModelicaRandom_impureRandom_xorshift1024star(0)
+      @test 0.0 <= y1 < 1.0
+
+      local y2 = ORC.ModelicaRandom_impureRandom_xorshift1024star(0)
+      @test 0.0 <= y2 < 1.0
+
+      ORC.ModelicaRandom_setInternalState_xorshift1024star(state, length(state), 0)
+      local y3 = ORC.ModelicaRandom_impureRandom_xorshift1024star(0)
+      @test y3 == y1
     end
   end
 

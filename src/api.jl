@@ -1136,6 +1136,24 @@ function ModelicaInternal_stat(name::String)::Int64
 end
 
 """
+    ModelicaInternal_removeFile(file)
+
+Remove a file from the filesystem. ccall goes directly to libModelicaExternalC
+because libModelicaCallbacks does not export a safe_ModelicaInternal_removeFile
+wrapper. The C function calls ModelicaFormatError on failure (e.g. file does not
+exist), which propagates through the ModelicaCallbacks shim's error handler.
+"""
+function ModelicaInternal_removeFile(file::String)
+  ccall(
+    (:ModelicaInternal_removeFile, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Cstring,),
+    file,
+  )
+  return nothing
+end
+
+"""
     ModelicaStreams_closeFile(fileName)
 
 Close a file that was opened for reading via ModelicaInternal_readLine.
@@ -1164,8 +1182,122 @@ function ModelicaFFT_kiss_fftr(nfft::Cint, timeIn::Ptr{Cdouble}, nTime::Csize_t,
   error("ModelicaFFT_kiss_fftr: FFT support not compiled into this build")
 end
 
-function ModelicaRandom_xorshift1024star(state_in::Ptr{Cint}, nState_in::Csize_t,
-                                          state_out::Ptr{Cint}, nState_out::Csize_t,
-                                          result::Ptr{Cdouble})
-  error("ModelicaRandom_xorshift1024star: random support not compiled into this build")
+#= ---- ModelicaRandom functions (direct ccall, no safe_* shim available) ---- =#
+#=
+The xorshift family and the auxiliary seed/conversion helpers are exported by
+libModelicaExternalC.so but have no wrappers in libModelicaCallbacks.so, so
+these bindings ccall directly. Signatures mirror the C declarations in
+ModelicaRandom.h: each xorshift{N} is `void f(int* state_in, int* state_out, double* y)`.
+Caller is responsible for allocating state_in / state_out as Vector{Cint} of the
+right length (xorshift64star: 2, xorshift128plus: 4, xorshift1024star: 33) and
+passing y as a Ref{Cdouble} or 1-element Vector{Cdouble} so ccall can mutate it.
+=#
+
+"""
+    ModelicaRandom_xorshift64star(state_in, state_out, y)
+
+xorshift64* RNG. state_in / state_out are Vector{Cint} of length 2;
+y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
+"""
+function ModelicaRandom_xorshift64star(state_in, state_out, y)
+  ccall(
+    (:ModelicaRandom_xorshift64star, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
+    state_in, state_out, y,
+  )
+  return nothing
+end
+
+"""
+    ModelicaRandom_xorshift128plus(state_in, state_out, y)
+
+xorshift128+ RNG. state_in / state_out are Vector{Cint} of length 4;
+y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
+"""
+function ModelicaRandom_xorshift128plus(state_in, state_out, y)
+  ccall(
+    (:ModelicaRandom_xorshift128plus, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
+    state_in, state_out, y,
+  )
+  return nothing
+end
+
+"""
+    ModelicaRandom_xorshift1024star(state_in, state_out, y)
+
+xorshift1024* RNG. state_in / state_out are Vector{Cint} of length 33;
+y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
+"""
+function ModelicaRandom_xorshift1024star(state_in, state_out, y)
+  ccall(
+    (:ModelicaRandom_xorshift1024star, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
+    state_in, state_out, y,
+  )
+  return nothing
+end
+
+"""
+    ModelicaRandom_setInternalState_xorshift1024star(state, nState, id)
+
+Initialize the internal (impure) state used by ModelicaRandom_impureRandom_xorshift1024star.
+state is a Vector{Cint} of length nState; id is the generator id (Int).
+"""
+function ModelicaRandom_setInternalState_xorshift1024star(state, nState::Integer, id::Integer)
+  ccall(
+    (:ModelicaRandom_setInternalState_xorshift1024star, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Ptr{Cint}, Csize_t, Cint),
+    state, Csize_t(nState), Cint(id),
+  )
+  return nothing
+end
+
+"""
+    ModelicaRandom_impureRandom_xorshift1024star(id) -> Float64
+
+Draw a uniform [0, 1) sample from the impure xorshift1024* generator previously
+seeded via ModelicaRandom_setInternalState_xorshift1024star.
+"""
+function ModelicaRandom_impureRandom_xorshift1024star(id::Integer)::Float64
+  return ccall(
+    (:ModelicaRandom_impureRandom_xorshift1024star, installedLibPathlibModelicaExternalC),
+    Cdouble,
+    (Cint,),
+    Cint(id),
+  )
+end
+
+"""
+    ModelicaRandom_automaticGlobalSeed(dummy) -> Int
+
+Generate an automatic integer seed (typically derived from current time and pid).
+The dummy argument exists only to constrain Modelica call ordering.
+"""
+function ModelicaRandom_automaticGlobalSeed(dummy::Real = 0.0)::Int
+  return Int(ccall(
+    (:ModelicaRandom_automaticGlobalSeed, installedLibPathlibModelicaExternalC),
+    Cint,
+    (Cdouble,),
+    Cdouble(dummy),
+  ))
+end
+
+"""
+    ModelicaRandom_convertRealToIntegers(d, i)
+
+Reinterpret a Float64 as two Int32 words, written into i (Vector{Cint} of length 2).
+"""
+function ModelicaRandom_convertRealToIntegers(d::Real, i)
+  ccall(
+    (:ModelicaRandom_convertRealToIntegers, installedLibPathlibModelicaExternalC),
+    Cvoid,
+    (Cdouble, Ptr{Cint}),
+    Cdouble(d), i,
+  )
+  return nothing
 end
