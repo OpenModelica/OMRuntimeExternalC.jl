@@ -366,6 +366,43 @@ const ORC = OMRuntimeExternalC
       rm(f, force=true)
     end
 
+    @testset "readMatrixSizes output-by-reference overload" begin
+      local dim = zeros(Cint, 2)
+      local ret = ORC.ModelicaIO_readMatrixSizes(testMatFile, "testMatrix", dim)
+      @test dim == Cint[2, 3]
+      @test ret === dim
+    end
+
+    @testset "readRealMatrix output-by-reference overload (Matrix buffer)" begin
+      local buf = zeros(Cdouble, 2, 3)
+      local ret = ORC.ModelicaIO_readRealMatrix(testMatFile, "testMatrix", buf, 2, 3)
+      @test ret === buf
+      @test isapprox(buf[1, 1], 1.0, atol=1e-10)
+      @test isapprox(buf[1, 3], 3.0, atol=1e-10)
+      @test isapprox(buf[2, 2], 5.0, atol=1e-10)
+      @test isapprox(buf[2, 3], 6.0, atol=1e-10)
+    end
+
+    @testset "readRealMatrix output-by-reference overload (Vector fallback)" begin
+      local buf = Cdouble[]
+      local ret = ORC.ModelicaIO_readRealMatrix(testMatFile, "testMatrix", buf, 2, 3)
+      @test ret === buf
+      @test length(buf) == 6
+      @test isapprox(buf[1], 1.0, atol=1e-10)
+      @test isapprox(buf[6], 6.0, atol=1e-10)
+    end
+
+    @testset "writeRealMatrix Modelica external arg-shape overload" begin
+      local f = tempname() * ".mat"
+      local A = [11.0 12.0; 21.0 22.0; 31.0 32.0]
+      local rc = ORC.ModelicaIO_writeRealMatrix(f, "Matrix_A", A, 3, 2, false, "4")
+      @test rc == 1
+      @test isfile(f)
+      local dims = ORC.ModelicaIO_readMatrixSizes(f, "Matrix_A")
+      @test dims == [3, 2]
+      rm(f, force=true)
+    end
+
     rm(testMatFile, force=true)
   end
 

@@ -85,18 +85,19 @@ function ModelicaStandardTables_CombiTable1D_init2(
   fileName::String,
   tableName::String,
   table::Matrix{Float64},
-  nRow::Int64,
-  nColumn::Int64,
-  columns::Vector{Int64},
-  nCols::Int64,
-  smoothness::Int64,
-  extrapolation::Int64,
+  nRow::Integer,
+  nColumn::Integer,
+  columns::AbstractVector{<:Integer},
+  nCols::Integer,
+  smoothness::Integer,
+  extrapolation::Integer,
   verbose::Integer)
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
+  local columnsCInt = convert(Vector{Cint}, columns)
   local res = ccall((:ModelicaStandardTables_CombiTable1D_init2, installedLibPath), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint),
-                    fileName, tableName, tableCShape, nRow, nColumn, columns, nCols, smoothness, extrapolation, verbose)
+                    fileName, tableName, tableCShape, nRow, nColumn, columnsCInt, nCols, smoothness, extrapolation, verbose)
   res
 end
 
@@ -431,21 +432,22 @@ function ModelicaStandardTables_CombiTimeTable_init2(
   fileName::String,
   tableName::String,
   table::Matrix{Float64},
-  nRow::Int64,
-  nColumn::Int64,
+  nRow::Integer,
+  nColumn::Integer,
   startTime::Float64,
-  columns::Vector{Int64},
-  nCols::Int64,
-  smoothness::Int64,
-  extrapolation::Int64,
+  columns::AbstractVector{<:Integer},
+  nCols::Integer,
+  smoothness::Integer,
+  extrapolation::Integer,
   shiftTime::Float64,
-  timeEvents::Int64,
+  timeEvents::Integer,
   verbose::Integer)
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
+  local columnsCInt = convert(Vector{Cint}, columns)
   local res = ccall((:ModelicaStandardTables_CombiTimeTable_init2, installedLibPath), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t, Cint, Cint, Cdouble, Cint, Cint),
-                    fileName, tableName, tableCShape, nRow, nColumn, startTime, columns, nCols, smoothness, extrapolation, shiftTime, timeEvents, verbose)
+                    fileName, tableName, tableCShape, nRow, nColumn, startTime, columnsCInt, nCols, smoothness, extrapolation, shiftTime, timeEvents, verbose)
   res
 end
 
@@ -665,10 +667,10 @@ function ModelicaStandardTables_CombiTable2D_init2(
   fileName::String,
   tableName::String,
   table::Matrix{Float64},
-  nRow::Int64,
-  nColumn::Int64,
-  smoothness::Int64,
-  extrapolation::Int64,
+  nRow::Integer,
+  nColumn::Integer,
+  smoothness::Integer,
+  extrapolation::Integer,
   verbose::Integer)
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
@@ -997,6 +999,17 @@ function ModelicaIO_readMatrixSizes(fileName::String, matrixName::String)::Vecto
   return Int64[dim[1], dim[2]]
 end
 
+#= Output-by-reference overload matching the Modelica `external "C"` decl
+   `ModelicaIO_readMatrixSizes(fileName, matrixName, dim)`. =#
+function ModelicaIO_readMatrixSizes(fileName::AbstractString,
+                                    matrixName::AbstractString,
+                                    dim::AbstractVector)
+  local res = ModelicaIO_readMatrixSizes(String(fileName), String(matrixName))
+  dim[1] = res[1]
+  dim[2] = res[2]
+  return dim
+end
+
 """
     ModelicaIO_readRealMatrix(fileName, matrixName, nrow, ncol, verbose) -> Matrix{Float64}
 
@@ -1019,6 +1032,26 @@ function ModelicaIO_readRealMatrix(
   rc != 0 && error("ModelicaIO_readRealMatrix failed: ", get_modelica_error())
   #= C fills row-major; reshape as (ncol, nrow) then transpose for Julia column-major =#
   return Matrix{Float64}(reshape(buffer, ncol, nrow)')
+end
+
+#= Output-by-reference overload matching the Modelica `external "C"` decl
+   `ModelicaIO_readRealMatrix(fileName, matrixName, matrix, size(matrix,1), size(matrix,2), verbose)`.
+   `matrix` may arrive as a `Matrix{Cdouble}(nrow,ncol)` (constant dims folded) or as a
+   degenerate `Cdouble[]` (runtime-sized) — both shapes accept linear `copyto!`. =#
+function ModelicaIO_readRealMatrix(fileName::AbstractString,
+                                   matrixName::AbstractString,
+                                   matrix::AbstractArray,
+                                   nrow::Integer,
+                                   ncol::Integer,
+                                   verbose::Bool = true)
+  local res = ModelicaIO_readRealMatrix(String(fileName), String(matrixName),
+                                        Int64(nrow), Int64(ncol), verbose)
+  local need = Int(nrow) * Int(ncol)
+  if matrix isa Vector && length(matrix) != need
+    resize!(matrix, need)
+  end
+  copyto!(matrix, res)
+  return matrix
 end
 
 """
@@ -1045,6 +1078,16 @@ function ModelicaIO_writeRealMatrix(
   )
   rc == -1 && error("ModelicaIO_writeRealMatrix failed: ", get_modelica_error())
   return Int64(rc)
+end
+
+#= Output-by-reference style overload matching the Modelica `external "C"` decl
+   `success = ModelicaIO_writeRealMatrix(fileName, matrixName, matrix, size(matrix,1), size(matrix,2), append, format)`.
+   The redundant nrow/ncol args are derived from `matrix` itself; we accept and ignore them. =#
+function ModelicaIO_writeRealMatrix(fileName::AbstractString, matrixName::AbstractString,
+                                    matrix::AbstractMatrix, nrow::Integer, ncol::Integer,
+                                    append::Bool, version::AbstractString)::Int64
+  return ModelicaIO_writeRealMatrix(String(fileName), String(matrixName),
+                                    Matrix{Float64}(matrix), Bool(append), String(version))
 end
 
 #= ---- ModelicaInternal functions (via safe_* wrappers in libModelicaCallbacks) ---- =#
@@ -1082,6 +1125,21 @@ function ModelicaInternal_readLine(fileName::String, lineNumber::Int64)
   rc != 0 && error("ModelicaInternal_readLine failed: ", get_modelica_error())
   local str = bufPtr[] == C_NULL ? "" : unsafe_string(bufPtr[])
   return (str, endOfFile[] != 0)
+end
+
+#= Output-by-reference overload matching the Modelica `external "C"` decl
+   `line = ModelicaInternal_readLine(fileName, lineNumber, endOfFile)`. The
+   third arg is a Ref/Vector slot the C function writes the EOF flag into; we
+   delegate to the 2-arg form and store the result. =#
+function ModelicaInternal_readLine(fileName::AbstractString, lineNumber::Integer,
+                                   endOfFile)::String
+  local (line, isEnd) = ModelicaInternal_readLine(String(fileName), Int64(lineNumber))
+  if endOfFile isa Ref
+    endOfFile[] = isEnd ? Cint(1) : Cint(0)
+  elseif endOfFile isa AbstractArray && !isempty(endOfFile)
+    endOfFile[1] = isEnd ? Cint(1) : Cint(0)
+  end
+  return line
 end
 
 """
