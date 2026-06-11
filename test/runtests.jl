@@ -527,6 +527,25 @@ const ORC = OMRuntimeExternalC
       @test nextIdx2 == 5
     end
 
+    @testset "ModelicaStrings_scanInteger Ref-accepting overload" begin
+      local nextIdx = Ref{Cint}(0)
+      local intVal  = Ref{Cint}(0)
+      ORC.ModelicaStrings_scanInteger("42 hello", Int64(1), Int64(0), nextIdx, intVal)
+      @test intVal[] == 42
+      @test nextIdx[] == 3
+
+      local nextIdx2 = Ref{Cint}(0)
+      local intVal2  = Ref{Cint}(0)
+      ORC.ModelicaStrings_scanInteger("-123abc", Int64(1), Int64(0), nextIdx2, intVal2)
+      @test intVal2[] == -123
+      @test nextIdx2[] == 5
+
+      local nextIdx3 = Ref{Cint}(0)
+      local intVal3  = Ref{Cint}(0)
+      ORC.ModelicaStrings_scanInteger("7", Int64(1), false, nextIdx3, intVal3)
+      @test intVal3[] == 7
+    end
+
     @testset "ModelicaStrings_scanReal" begin
       (nextIdx, val) = ORC.ModelicaStrings_scanReal("3.14 rest", 1, 0)
       @test isapprox(val, 3.14, atol=1e-10)
@@ -677,6 +696,58 @@ const ORC = OMRuntimeExternalC
       ORC.ModelicaRandom_setInternalState_xorshift1024star(state, length(state), 0)
       local y3 = ORC.ModelicaRandom_impureRandom_xorshift1024star(0)
       @test y3 == y1
+    end
+
+    @testset "Modelica.Math.Random.Utilities impure RNG (ORC re-impl)" begin
+      #= initializeImpureRandom seeds the hidden xorshift1024* state and returns
+         the constant id (localSeed = 715827883). =#
+      local id = ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(12345)
+      @test id isa Int
+      @test id == 715827883
+
+      @testset "state fill helper is full-length and deterministic" begin
+        local st1 = ORC._initialStateWithXorshift64star(715827883, 99, 33)
+        local st2 = ORC._initialStateWithXorshift64star(715827883, 99, 33)
+        @test length(st1) == 33
+        @test eltype(st1) == Cint
+        @test st1 == st2
+        #= a different global seed yields a different state =#
+        @test st1 != ORC._initialStateWithXorshift64star(715827883, 100, 33)
+      end
+
+      @testset "impureRandom draws in [0, 1)" begin
+        local r1 = ORC.Modelica_Math_Random_Utilities_impureRandom(id)
+        local r2 = ORC.Modelica_Math_Random_Utilities_impureRandom(id)
+        @test r1 isa Float64
+        @test 0.0 <= r1 < 1.0
+        @test 0.0 <= r2 < 1.0
+        @test r1 != r2  #= impure: successive draws differ =#
+      end
+
+      @testset "deterministic in the seed (same seed -> same stream)" begin
+        ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(777)
+        local a = [ORC.Modelica_Math_Random_Utilities_impureRandom(id) for _ in 1:3]
+        ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(777)
+        local b = [ORC.Modelica_Math_Random_Utilities_impureRandom(id) for _ in 1:3]
+        @test a == b
+      end
+
+      @testset "different seeds -> different stream" begin
+        ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(1)
+        local v1 = [ORC.Modelica_Math_Random_Utilities_impureRandom(id) for _ in 1:3]
+        ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(2)
+        local v2 = [ORC.Modelica_Math_Random_Utilities_impureRandom(id) for _ in 1:3]
+        @test v1 != v2
+      end
+
+      @testset "impureRandomInteger maps into [imin, imax]" begin
+        ORC.Modelica_Math_Random_Utilities_initializeImpureRandom(42)
+        for _ in 1:50
+          local k = ORC.Modelica_Math_Random_Utilities_impureRandomInteger(id, 1, 10)
+          @test k isa Int
+          @test 1 <= k <= 10
+        end
+      end
     end
   end
 

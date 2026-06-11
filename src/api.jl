@@ -491,6 +491,30 @@ function ModelicaStandardTables_CombiTimeTable_getValue(
               tableID, icol, t, nextTimeEvent, preNextTimeEvent)
 end
 
+#= Strip a possibly-AD (ForwardDiff.Dual) Real to its primal Cdouble WITHOUT a
+   ForwardDiff dependency: a Dual stores its primal in the `value` field, so peel
+   it recursively until an AbstractFloat (handles nested/higher-order Duals). =#
+@inline _orcPrimal(x::AbstractFloat)::Float64 = Float64(x)
+@inline _orcPrimal(x::Integer)::Float64 = Float64(x)
+@inline _orcPrimal(x::Real)::Float64 = _orcPrimal(getfield(x, :value))
+
+#= AD-safe overload: the DAE consistent-IC nonlinear solve autodiffs the RHS, so
+   the table getter can be called with Dual args on the event-timing parameters.
+   The table value depends only on `t` (constant during that solve), so it is
+   constant w.r.t. the differentiated unknowns (zero derivative). Strip to primals
+   and return the numeric value; the Float64 return is treated as a constant by
+   ForwardDiff, which is the correct zero-derivative through the table. =#
+function ModelicaStandardTables_CombiTimeTable_getValue(
+  tableID::ExternalCombiTimeTable,
+  icol::Integer,
+  t::Real,
+  nextTimeEvent::Real,
+  preNextTimeEvent::Real,
+  )::Float64
+  ModelicaStandardTables_CombiTimeTable_getValue(tableID, Int64(icol),
+    _orcPrimal(t), _orcPrimal(nextTimeEvent), _orcPrimal(preNextTimeEvent))
+end
+
 """
 MODELICA_EXPORT double ModelicaStandardTables_CombiTimeTable_getDerValue(void* tableID, int icol,
                                                                          double t, double nextTimeEvent, double preNextTimeEvent, double der_t);
@@ -523,6 +547,20 @@ function ModelicaStandardTables_CombiTimeTable_getDerValue(
     @error "Calling ModelicaStandardTables_CombiTimeTable_getDerValue. Check that icol is within the bounds of the table" icol
   end
   return res
+end
+
+#= AD-safe overload (see CombiTimeTable_getValue): a time-function, constant
+   w.r.t. the differentiated unknowns; strip any Dual args to primals. =#
+function ModelicaStandardTables_CombiTimeTable_getDerValue(
+  tableID::ExternalCombiTimeTable,
+  icol::Integer,
+  t::Real,
+  nextTimeEvent::Real,
+  preNextTimeEvent::Real,
+  der_t::Real,
+  )
+  ModelicaStandardTables_CombiTimeTable_getDerValue(tableID, Int64(icol),
+    _orcPrimal(t), _orcPrimal(nextTimeEvent), _orcPrimal(preNextTimeEvent), _orcPrimal(der_t))
 end
 
 """
@@ -560,6 +598,21 @@ function ModelicaStandardTables_CombiTimeTable_getDer2Value(
     @error "Calling ModelicaStandardTables_CombiTimeTable_getDer2Value. Check that icol is within the bounds of the table" icol
   end
   return res
+end
+
+#= AD-safe overload (see CombiTimeTable_getValue): a time-function, constant
+   w.r.t. the differentiated unknowns; strip any Dual args to primals. =#
+function ModelicaStandardTables_CombiTimeTable_getDer2Value(
+  tableID::ExternalCombiTimeTable,
+  icol::Integer,
+  t::Real,
+  nextTimeEvent::Real,
+  preNextTimeEvent::Real,
+  der_t::Real,
+  der2_t::Real,
+  )
+  ModelicaStandardTables_CombiTimeTable_getDer2Value(tableID, Int64(icol),
+    _orcPrimal(t), _orcPrimal(nextTimeEvent), _orcPrimal(preNextTimeEvent), _orcPrimal(der_t), _orcPrimal(der2_t))
 end
 
 """
@@ -914,6 +967,14 @@ function ModelicaStrings_scanInteger(string::String, startIndex::Int64, unsigned
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cint}),
         string, startIndex, unsignedNumber, nextIndex, integerNumber)
   return (Int64(nextIndex[]), Int64(integerNumber[]))
+end
+
+function ModelicaStrings_scanInteger(string::String, startIndex::Integer, unsignedNumber::Integer,
+                                     nextIndex::Ref{Cint}, integerNumber::Ref{Cint})
+  ccall((:ModelicaStrings_scanInteger, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Cint, Ref{Cint}, Ref{Cint}),
+        string, Cint(startIndex), Cint(unsignedNumber), nextIndex, integerNumber)
 end
 
 """
@@ -1328,6 +1389,88 @@ function ModelicaRandom_impureRandom_xorshift1024star(id::Integer)::Float64
     (Cint,),
     Cint(id),
   )
+end
+
+#= ---- Modelica.Math.Random.Utilities impure-RNG functions ----
+   The codegen does not translate these MSL algorithm bodies, so provide them
+   here (routed via MODELICA_UTILITIES_TO_RUNTIME_C). Faithful to the MSL 3.2.3
+   sources, built on the ModelicaRandom_* C primitives above. =#
+
+#= Generators.Xorshift64star.initialState(localSeed, globalSeed): seed a length-2
+   state (a fixed prime replaces an all-zero seed) and iterate 10 times. =#
+function _xorshift64starInitialState(localSeed::Integer, globalSeed::Integer)
+  local state = (localSeed == 0 && globalSeed == 0) ?
+    Cint[126247697, Cint(globalSeed)] : Cint[Cint(localSeed), Cint(globalSeed)]
+  local out = Cint[0, 0]
+  local r = Ref{Cdouble}(0.0)
+  for _ in 1:10
+    ModelicaRandom_xorshift64star(state, out, r)
+    state[1] = out[1]; state[2] = out[2]
+  end
+  return state
+end
+
+#= Utilities.initialStateWithXorshift64star(localSeed, globalSeed, nState): fill an
+   nState-length Integer state vector with xorshift64* draws (pairwise). =#
+function _initialStateWithXorshift64star(localSeed::Integer, globalSeed::Integer, nState::Integer)
+  local state = zeros(Cint, nState)
+  local aux = _xorshift64starInitialState(localSeed, globalSeed)
+  if nState >= 2
+    state[1] = aux[1]; state[2] = aux[2]
+  else
+    state[1] = aux[1]
+  end
+  local nStateEven = 2 * div(nState, 2)
+  local out = Cint[0, 0]
+  local r = Ref{Cdouble}(0.0)
+  local i = 3
+  while i <= nStateEven
+    ModelicaRandom_xorshift64star(Cint[state[i-2], state[i-1]], out, r)
+    state[i] = out[1]; state[i+1] = out[2]
+    i += 2
+  end
+  if nState >= 3 && nState != nStateEven
+    ModelicaRandom_xorshift64star(Cint[state[nState-2], state[nState-1]], out, r)
+    state[nState] = out[1]
+  end
+  return state
+end
+
+"""
+    Modelica_Math_Random_Utilities_initializeImpureRandom(seed) -> Int
+
+Modelica.Math.Random.Utilities.initializeImpureRandom: seed the impure
+xorshift1024* generator's hidden C state from `seed` and return the id
+(the constant localSeed) to be passed to impureRandom.
+"""
+function Modelica_Math_Random_Utilities_initializeImpureRandom(seed::Integer)::Int
+  local localSeed = 715827883
+  #= MSL passes localSeed as the local seed and `seed` as the global seed. =#
+  local rngState = _initialStateWithXorshift64star(localSeed, seed, 33)
+  local id = localSeed
+  ModelicaRandom_setInternalState_xorshift1024star(rngState, length(rngState), id)
+  return id
+end
+
+"""
+    Modelica_Math_Random_Utilities_impureRandom(id) -> Float64
+
+Modelica.Math.Random.Utilities.impureRandom: draw the next impure sample.
+"""
+Modelica_Math_Random_Utilities_impureRandom(id::Integer)::Float64 =
+  ModelicaRandom_impureRandom_xorshift1024star(id)
+
+"""
+    Modelica_Math_Random_Utilities_impureRandomInteger(id, imin, imax) -> Int
+
+Modelica.Math.Random.Utilities.impureRandomInteger: map an impure sample to the
+integer range [imin, imax].
+"""
+function Modelica_Math_Random_Utilities_impureRandomInteger(id::Integer,
+                                                            imin::Integer = 1,
+                                                            imax::Integer = 268435456)::Int
+  local r = ModelicaRandom_impureRandom_xorshift1024star(id)
+  return min(imax, floor(Int, r * (imax - imin + 1)) + imin)
 end
 
 """
