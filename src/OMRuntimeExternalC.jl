@@ -34,37 +34,49 @@ function locateSharedParserLibrary(directoryToSearchIn, libraryName, relativeDir
   nothing
 end
 
+#= Topological load order for the OMC shared libraries shipped with this
+   package. Each entry only references SONAMEs of entries that appear before
+   it, so dlopen'ing them in this sequence with RTLD_GLOBAL satisfies every
+   DT_NEEDED reference for the dependent libraries. libModelicaCallbacks is
+   first so its symbols win global resolution and override the default OMC
+   setjmp/longjmp-based error handlers. =#
+const _LIB_LOAD_ORDER = (
+  "libModelicaCallbacks",
+  "libomcgc",
+  "libOpenModelicaRuntimeC",
+  "libModelicaMatIO",
+  "libModelicaIO",
+  "libModelicaStandardTables",
+  "libModelicaExternalC",
+  "libSimulationRuntimeC",
+)
+
 function __init__()
-  try
-    if installedLibPath !== nothing
-      local libdir = splitdir(installedLibPath)[1]
-      if Sys.iswindows()
-        #= On Windows, add to PATH for DLL search =#
-        Base._setenv("PATH", ENV["PATH"] * ";" * libdir)
-      else
-        #= On Linux/macOS, add to both DL_LOAD_PATH and LD_LIBRARY_PATH =#
-        push!(Libdl.DL_LOAD_PATH, libdir)
-        #= Also set LD_LIBRARY_PATH for library dependencies loaded by the system linker =#
-        local ldpath = get(ENV, "LD_LIBRARY_PATH", "")
-        ENV["LD_LIBRARY_PATH"] = isempty(ldpath) ? libdir : libdir * ":" * ldpath
+  if installedLibPath === nothing
+    @warn "OMRuntimeExternalC: shared libraries not found. Simulations that use external Modelica functions will fail."
+    return nothing
+  end
+  local libdir = splitdir(installedLibPath)[1]
+  push!(Libdl.DL_LOAD_PATH, libdir)
+  if Sys.iswindows()
+    #= Windows resolves DLL dependencies via PATH at LoadLibrary time. =#
+    ENV["PATH"] = libdir * ";" * get(ENV, "PATH", "")
+  end
+  #= The prebuilt .so files have RUNPATH baked to the original build host,
+     so ld.so cannot resolve inter-library DT_NEEDED entries on its own.
+     Pre-load every dependency by absolute path in topological order with
+     RTLD_GLOBAL; ld.so reuses the already-loaded library when it sees the
+     same SONAME on a dependent load. =#
+  local ext = Sys.iswindows() ? ".dll" : (Sys.isapple() ? ".dylib" : ".so")
+  for name in _LIB_LOAD_ORDER
+    local p = joinpath(libdir, name * ext)
+    if isfile(p)
+      try
+        Libdl.dlopen(p, Libdl.RTLD_GLOBAL | Libdl.RTLD_LAZY)
+      catch err
+        @warn "OMRuntimeExternalC: failed to preload $name" path=p exception=err
       end
     end
-    #= Load the Julia-compatible ModelicaCallbacks shim FIRST with RTLD_GLOBAL
-       so it overrides the OMC setjmp/longjmp-based error handlers.
-       Then load the other libraries with RTLD_GLOBAL so their symbols are
-       visible to dlsym (used by the safe_* wrappers in the callbacks shim). =#
-    if installedLibPathlibModelicaCallbacks !== nothing
-      Libdl.dlopen(installedLibPathlibModelicaCallbacks, Libdl.RTLD_GLOBAL)
-    end
-    if installedLibPathlibModelicaIO !== nothing
-      Libdl.dlopen(installedLibPathlibModelicaIO, Libdl.RTLD_GLOBAL)
-    end
-    if installedLibPathlibModelicaExternalC !== nothing
-      Libdl.dlopen(installedLibPathlibModelicaExternalC, Libdl.RTLD_GLOBAL)
-    end
-  catch
-    @warn "Failed to setup the environment correctly. Make sure that you have the correct shared libraries installed."
-    @warn "NOTE: If your Modelica model uses certain external functions your simulation might fail."
   end
   nothing
 end
