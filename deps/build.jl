@@ -8,9 +8,59 @@ import Inflate
 const DEPS_DIR = @__DIR__
 const PACKAGE_DIR = dirname(DEPS_DIR)
 const PATH_TO_EXT = joinpath(PACKAGE_DIR, "lib", "ext")
-const RELEASE_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0"
-const CALLBACKS_VERSION = "v0.1.0"
-const CALLBACKS_BASE_URL = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/$(CALLBACKS_VERSION)"
+
+const REPO_SLUG = "OpenModelica/OMRuntimeExternalC.jl"
+const RELEASES_API_URL = "https://api.github.com/repos/$(REPO_SLUG)/releases"
+const DOWNLOAD_BASE = "https://github.com/$(REPO_SLUG)/releases/download"
+
+# Fallback tag, used only when the GitHub API can't be reached (offline build,
+# rate-limited CI, etc.). Prebuilt binaries live on the `libs-vX.Y.Z` tag line,
+# which is intentionally decoupled from the package source version (Project.toml).
+const DEFAULT_RELEASE_TAG = "libs-v0.1.0"
+
+# Resolved at build time (see resolveReleaseTag!). A Ref so it can be set after the
+# `const` is declared, while the download code below reads RELEASE_TAG[].
+const RELEASE_TAG = Ref{String}(DEFAULT_RELEASE_TAG)
+
+"""
+    resolveReleaseTag() -> String
+
+Query the GitHub releases API and return the newest binary-release tag. Prefers the
+`libs-` tag line; falls back to the most recent release overall, and finally to
+`DEFAULT_RELEASE_TAG` if the API is unreachable. Emits @info/@warn so the build log
+records which tag (and why) was chosen.
+"""
+function resolveReleaseTag()
+  try
+    @info "Resolving latest OMRuntimeExternalC release tag from GitHub..." url = RELEASES_API_URL
+    local headers = ["Accept" => "application/vnd.github+json",
+                     "User-Agent" => "OMRuntimeExternalC.jl-build"]
+    # Use a token when available so CI doesn't hit the low anonymous rate limit.
+    local token = get(ENV, "GITHUB_TOKEN", get(ENV, "GH_TOKEN", ""))
+    isempty(token) || push!(headers, "Authorization" => "Bearer $(token)")
+
+    local resp = HTTP.get(RELEASES_API_URL; headers = headers, status_exception = true)
+    # The API lists releases newest-first; pull tag_names without a JSON dep.
+    local tags = [m.captures[1] for m in eachmatch(r"\"tag_name\"\s*:\s*\"([^\"]+)\"", String(resp.body))]
+    isempty(tags) && error("GitHub API returned no releases")
+
+    local libsIdx = findfirst(t -> startswith(t, "libs-"), tags)
+    if libsIdx === nothing
+      @warn "No `libs-` release found; using most recent release tag instead" tag = first(tags)
+      return first(tags)
+    end
+    @info "Resolved latest binary release tag" tag = tags[libsIdx]
+    return tags[libsIdx]
+  catch err
+    @warn "Could not resolve latest release tag from GitHub; falling back to default" fallback = DEFAULT_RELEASE_TAG exception = err
+    return DEFAULT_RELEASE_TAG
+  end
+end
+
+RELEASE_TAG[] = resolveReleaseTag()
+
+# Both the runtime libs and the callbacks shim are published on the same release.
+releaseBaseURL() = "$(DOWNLOAD_BASE)/$(RELEASE_TAG[])"
 
 function downloadAndExtractLibraries(libraryString; URL)
   @info "Downloading archive from $(URL)..."
@@ -41,7 +91,7 @@ function downloadAndExtractLibraries(libraryString; URL)
 end
 
 function downloadCallbacksShim(libSubdir::String)
-  local url = "$(CALLBACKS_BASE_URL)/$(libSubdir)-callbacks.tar.gz"
+  local url = "$(releaseBaseURL())/$(libSubdir)-callbacks.tar.gz"
   local outDir = joinpath(PATH_TO_EXT, "shared", libSubdir)
   mkpath(outDir)
 
@@ -98,11 +148,11 @@ end
 
 @static if Sys.iswindows()
   downloadAndExtractLibraries("x86_64-mingw32";
-                              URL="$(RELEASE_BASE_URL)/x86_64-mingw32.zip")
+                              URL="$(releaseBaseURL())/x86_64-mingw32.zip")
   downloadCallbacksShim("x86_64-mingw32")
 elseif Sys.islinux()
   downloadAndExtractLibraries("x86_64-linux-gnu";
-                              URL="$(RELEASE_BASE_URL)/x86_64-linux-gnu.zip")
+                              URL="$(releaseBaseURL())/x86_64-linux-gnu.zip")
   downloadCallbacksShim("x86_64-linux-gnu")
 elseif Sys.isapple()
   @warn "macOS: Modelica external C libraries are not yet available."
