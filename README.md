@@ -33,7 +33,7 @@ If you wish to contribute by adding an interface, please see `api.jl` for exampl
 
 ## License
 
-This package is part of OMJL: https://github.com/JKRT/OM.jl
+This package is part of OMJL: https://github.com/OpenModelica/OM.jl
 
 The prebuilt binary libraries are built from OpenModelica source code and are redistributed under their respective licenses:
 
