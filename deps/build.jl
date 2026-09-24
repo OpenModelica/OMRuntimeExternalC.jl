@@ -62,30 +62,42 @@ RELEASE_TAG[] = resolveReleaseTag()
 # Both the runtime libs and the callbacks shim are published on the same release.
 releaseBaseURL() = "$(DOWNLOAD_BASE)/$(RELEASE_TAG[])"
 
+#= Put `src` in place of `dest` by renaming it (after removing `dest`), never by
+   writing into `dest`: a Julia session that has the old library loaded keeps
+   its unlinked copy, whereas rewriting a loaded Mach-O can get it killed. =#
+function installFile(src::String, dest::String)
+  mkpath(dirname(dest))
+  mv(src, dest; force = true)
+end
+
 function downloadAndExtractLibraries(libraryString; URL)
   @info "Downloading archive from $(URL)..."
   mkpath(PATH_TO_EXT)
 
   local zipPath = joinpath(PATH_TO_EXT, libraryString * ".zip")
-  HTTP.download(URL, zipPath)
-
   local sharedDir = joinpath(PATH_TO_EXT, "shared")
-  mkpath(sharedDir)
-
-  @info "Extracting to $(sharedDir)..."
-  r = ZipFile.Reader(zipPath)
-  for f in r.files
-    if endswith(f.name, "/")
-      continue
+  try
+    HTTP.download(URL, zipPath)
+    mkpath(sharedDir)
+    @info "Extracting to $(sharedDir)..."
+    local r = ZipFile.Reader(zipPath)
+    try
+      for f in r.files
+        if endswith(f.name, "/")
+          continue
+        end
+        local outPath = joinpath(sharedDir, f.name)
+        @info "Extracting: $(f.name)"
+        mkpath(dirname(outPath))
+        write(outPath * ".part", read(f))
+        installFile(outPath * ".part", outPath)
+      end
+    finally
+      close(r)
     end
-    local outPath = joinpath(sharedDir, f.name)
-    local outDir = dirname(outPath)
-    mkpath(outDir)
-    @info "Extracting: $(f.name)"
-    write(outPath, read(f))
+  finally
+    rm(zipPath; force = true)
   end
-  close(r)
-  rm(zipPath)
 
   @info "Successfully extracted libraries to $(sharedDir)/$(libraryString)/"
 end
@@ -105,11 +117,19 @@ function downloadCallbacksShim(libSubdir::String)
   @info "Downloading ModelicaCallbacks shim from $(url)..."
   try
     local tgzPath = joinpath(PATH_TO_EXT, "$(libSubdir)-callbacks.tar.gz")
-    HTTP.download(url, tgzPath)
-    open(tgzPath) do io
-      Tar.extract(Inflate.inflate_gzip(io), outDir)
+    #= Tar.extract needs an empty target directory (outDir already holds the
+       other libraries) and an IO, not the inflated bytes. =#
+    local tmpDir = mktempdir(PATH_TO_EXT)
+    try
+      HTTP.download(url, tgzPath)
+      Tar.extract(IOBuffer(Inflate.inflate_gzip(read(tgzPath))), tmpDir)
+      for name in readdir(tmpDir)
+        installFile(joinpath(tmpDir, name), joinpath(outDir, name))
+      end
+    finally
+      rm(tmpDir; force = true, recursive = true)
+      rm(tgzPath; force = true)
     end
-    rm(tgzPath)
     @info "Successfully installed ModelicaCallbacks shim to $outDir"
   catch e
     @warn "Failed to download pre-built ModelicaCallbacks shim: $e"
@@ -155,8 +175,19 @@ elseif Sys.islinux()
                               URL="$(releaseBaseURL())/x86_64-linux-gnu.zip")
   downloadCallbacksShim("x86_64-linux-gnu")
 elseif Sys.isapple()
-  @warn "macOS: Modelica external C libraries are not yet available."
+  #= Built from the Modelica Standard Library C sources by
+     .github/workflows/macos-libs.yml (deps/build_msl_c_macos.sh). A release
+     published before that workflow has no macOS asset: warn and go on, as
+     before, instead of failing the build. =#
   local arch = Sys.ARCH == :aarch64 ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
+  try
+    downloadAndExtractLibraries(arch; URL="$(releaseBaseURL())/$(arch).zip")
+  catch e
+    @warn "macOS: no prebuilt Modelica external C libraries in release $(RELEASE_TAG[]); " *
+          "external Modelica functions will not work. To build them locally run " *
+          "deps/build_msl_c_macos.sh <ModelicaStandardLibrary>/Modelica/Resources/C-Sources " *
+          "lib/ext/shared/$(arch)" exception = e
+  end
   downloadCallbacksShim(arch)
 else
   @warn "This platform is not supported."
