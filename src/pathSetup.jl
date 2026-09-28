@@ -1,7 +1,7 @@
-const INSTALLATION_DIRECTORY_PATH = let
-  pkgfile = Base.find_package("OMRuntimeExternalC")
-  pkgfile === nothing ? "" : dirname(dirname(pkgfile))
-end
+#= The package's own directory, as OMParser finds its own: Base.find_package resolves a name only
+   where the active environment lists the package directly, and a precompile elsewhere (an
+   environment with OM only) found no libraries at all, which the cache then kept. =#
+const INSTALLATION_DIRECTORY_PATH = normpath(joinpath(@__DIR__, ".."))
 
 #= Shared path - use joinpath instead of realpath to avoid errors if directory does not exist =#
 const SHARED_DIRECTORY_PATH = joinpath(INSTALLATION_DIRECTORY_PATH, "lib", "ext")
