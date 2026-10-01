@@ -1296,9 +1296,38 @@ function ModelicaError(msg::String)
   error("Modelica runtime error: " * msg)
 end
 
-function ModelicaFFT_kiss_fftr(nfft::Cint, timeIn::Ptr{Cdouble}, nTime::Csize_t,
-                                f_re::Ptr{Cdouble}, f_im::Ptr{Cdouble}, nf::Csize_t)
-  error("ModelicaFFT_kiss_fftr: FFT support not compiled into this build")
+"""
+    ModelicaFFT_kiss_fftr(u, nu, work, nwork, amplitudes, phases) -> info
+
+Modelica.Math.FastFourierTransform's real FFT (MSL's ModelicaFFT.c): the
+amplitudes |X_k| / nf and phases arg(X_k) of the frequencies k = 0..nu/2 of the
+real signal u, X_k = sum(u[n+1] * exp(-2im*pi*k*n/nu) for n in 0:nu-1), nf = nu/2 + 1.
+A direct sum over a table of the nu roots of unity (no FFT library; nu is at
+most a few thousand in the MSL examples); `work` is only checked for its size.
+info: 0 o.k., 1 nu not even, 2 work too small.
+"""
+function ModelicaFFT_kiss_fftr(u::AbstractVector{<:Real}, nu::Integer, work::AbstractVector{<:Real}, nwork::Integer,
+                               amplitudes::AbstractVector{Float64}, phases::AbstractVector{Float64})::Int
+  nu % 2 == 0 || return 1
+  local nf = nu ÷ 2 + 1
+  nwork >= 3 * nu + 2 * nf || return 2
+  #= exp(-2im*pi*k*n/nu) is the root of unity m = k*n mod nu. =#
+  local c = [cospi(2m / nu) for m in 0:(nu - 1)]
+  local s = [sinpi(2m / nu) for m in 0:(nu - 1)]
+  for k in 0:(min(nf, length(amplitudes), length(phases)) - 1)
+    local re = 0.0
+    local im = 0.0
+    local m = 0
+    for n in 0:(nu - 1)
+      re += u[n + 1] * c[m + 1]
+      im -= u[n + 1] * s[m + 1]
+      m += k
+      m >= nu && (m -= nu)
+    end
+    amplitudes[k + 1] = sqrt(re^2 + im^2) / nf
+    phases[k + 1] = atan(im, re)
+  end
+  return 0
 end
 
 #= ---- ModelicaRandom functions (direct ccall, no safe_* shim available) ---- =#
