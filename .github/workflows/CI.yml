@@ -40,6 +40,13 @@ jobs:
 
       - name: Install dependencies and build
         shell: bash
+        # The library paths are looked up when the package precompiles
+        # (src/pathSetup.jl): precompile after Pkg.build has downloaded the
+        # libraries, as Pkg.add does, not in Pkg.instantiate (Julia 1.13
+        # precompiles the active project there, and the cache then holds
+        # "not found").
+        env:
+          JULIA_PKG_PRECOMPILE_AUTO: 0
         run: |
           julia --color=yes --project -e '
             import Pkg
