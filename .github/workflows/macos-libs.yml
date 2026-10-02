@@ -2,7 +2,7 @@ name: macOS libraries
 
 # Builds the Modelica external C libraries for macOS from the Modelica Standard
 # Library C sources (deps/build_msl_c_macos.sh), tests the package against them
-# on Julia 1.12 and 1.13, and, when run by hand with a release tag, uploads
+# on Julia 1.13, and, when run by hand with a release tag, uploads
 #   <arch>-apple-darwin.zip   (libModelica{MatIO,IO,StandardTables,ExternalC,Callbacks}.dylib)
 # to that libs-* release, where deps/build.jl downloads it on macOS.
 #
@@ -78,7 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, macos-15-intel]
-        version: ["1.12", "1.13"]
+        version: ["1.13"]
         include:
           - os: macos-latest
             platform: aarch64-apple-darwin

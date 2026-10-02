@@ -25,7 +25,7 @@ calls. The `OpenModelicaRuntimeC`, `SimulationRuntimeC` and `omcgc` libraries of
 the other platforms are not included.
 
 - CI: the `macOS libraries` workflow (`.github/workflows/macos-libs.yml`) builds
-  both architectures and runs the tests on Julia 1.12 and 1.13. Run it by hand
+  both architectures and runs the tests on Julia 1.13. Run it by hand
   with `release_tag` set to the current `libs-*` release to upload the zips there.
 - Locally, from a ModelicaStandardLibrary checkout (tag v4.0.0):
 
