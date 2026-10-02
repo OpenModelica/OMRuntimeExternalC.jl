@@ -1,6 +1,9 @@
 @info "Building OMRuntimeExternalC"
 
-using HTTP
+#= Downloads (stdlib), not HTTP: HTTP 2 dropped HTTP.download, and with no compat
+   bound Julia 1.13 resolved HTTP 2.8, so the build downloaded nothing on Linux and
+   Windows (2026-10-02). =#
+import Downloads
 import ZipFile
 import Tar
 import Inflate
@@ -39,9 +42,11 @@ function resolveReleaseTag()
     local token = get(ENV, "GITHUB_TOKEN", get(ENV, "GH_TOKEN", ""))
     isempty(token) || push!(headers, "Authorization" => "Bearer $(token)")
 
-    local resp = HTTP.get(RELEASES_API_URL; headers = headers, status_exception = true)
+    # Downloads.download throws on a status that is not a success.
+    local body = IOBuffer()
+    Downloads.download(RELEASES_API_URL, body; headers = headers)
     # The API lists releases newest-first; pull tag_names without a JSON dep.
-    local tags = [m.captures[1] for m in eachmatch(r"\"tag_name\"\s*:\s*\"([^\"]+)\"", String(resp.body))]
+    local tags = [m.captures[1] for m in eachmatch(r"\"tag_name\"\s*:\s*\"([^\"]+)\"", String(take!(body)))]
     isempty(tags) && error("GitHub API returned no releases")
 
     local libsIdx = findfirst(t -> startswith(t, "libs-"), tags)
@@ -77,7 +82,7 @@ function downloadAndExtractLibraries(libraryString; URL)
   local zipPath = joinpath(PATH_TO_EXT, libraryString * ".zip")
   local sharedDir = joinpath(PATH_TO_EXT, "shared")
   try
-    HTTP.download(URL, zipPath)
+    Downloads.download(URL, zipPath)
     mkpath(sharedDir)
     @info "Extracting to $(sharedDir)..."
     local r = ZipFile.Reader(zipPath)
@@ -121,7 +126,7 @@ function downloadCallbacksShim(libSubdir::String)
        other libraries) and an IO, not the inflated bytes. =#
     local tmpDir = mktempdir(PATH_TO_EXT)
     try
-      HTTP.download(url, tgzPath)
+      Downloads.download(url, tgzPath)
       Tar.extract(IOBuffer(Inflate.inflate_gzip(read(tgzPath))), tmpDir)
       for name in readdir(tmpDir)
         installFile(joinpath(tmpDir, name), joinpath(outDir, name))
