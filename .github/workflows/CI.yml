@@ -16,11 +16,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            version: '1.10'
+            version: '1.13'
             lib_subdir: 'x86_64-mingw32'
             shim_ext: '.dll'
           - os: ubuntu-latest
-            version: '1.10'
+            version: '1.13'
             lib_subdir: 'x86_64-linux-gnu'
             shim_ext: '.so'
     steps:
@@ -40,6 +40,13 @@ jobs:
 
       - name: Install dependencies and build
         shell: bash
+        # The library paths are looked up when the package precompiles
+        # (src/pathSetup.jl): precompile after Pkg.build has downloaded the
+        # libraries, as Pkg.add does, not in Pkg.instantiate (Julia 1.13
+        # precompiles the active project there, and the cache then holds
+        # "not found").
+        env:
+          JULIA_PKG_PRECOMPILE_AUTO: 0
         run: |
           julia --color=yes --project -e '
             import Pkg

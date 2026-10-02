@@ -1,0 +1,142 @@
+name: macOS libraries
+
+# Builds the Modelica external C libraries for macOS from the Modelica Standard
+# Library C sources (deps/build_msl_c_macos.sh), tests the package against them
+# on Julia 1.13, and, when run by hand with a release tag, uploads
+#   <arch>-apple-darwin.zip   (libModelica{MatIO,IO,StandardTables,ExternalC,Callbacks}.dylib)
+# to that libs-* release, where deps/build.jl downloads it on macOS.
+#
+# Upload only to an EXISTING libs-* release: deps/build.jl takes the newest
+# libs-* release for every platform, so a new release without the Linux and
+# Windows zips would break those platforms.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing libs-* release to upload to (empty: build and test only)"
+        required: false
+        default: ""
+      msl_ref:
+        description: "ModelicaStandardLibrary tag with the C sources"
+        required: false
+        default: "v4.0.0"
+  pull_request:
+    paths:
+      - "deps/build_msl_c_macos.sh"
+      - "deps/build.jl"
+      - "src/modelica_callbacks.c"
+      - ".github/workflows/macos-libs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: aarch64-apple-darwin
+          - os: macos-15-intel
+            platform: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the MSL C sources
+        uses: actions/checkout@v4
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: ${{ inputs.msl_ref || 'v4.0.0' }}
+          path: msl
+          sparse-checkout: Modelica/Resources/C-Sources
+
+      - name: Build
+        run: deps/build_msl_c_macos.sh msl/Modelica/Resources/C-Sources out/${{ matrix.platform }}
+
+      - name: Package
+        run: |
+          cd out
+          zip -r ../${{ matrix.platform }}.zip ${{ matrix.platform }}
+          cd ..
+          unzip -l ${{ matrix.platform }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-libs-${{ matrix.platform }}
+          path: ${{ matrix.platform }}.zip
+          if-no-files-found: error
+
+  test:
+    name: Test (${{ matrix.platform }}, Julia ${{ matrix.version }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-15-intel]
+        version: ["1.13"]
+        include:
+          - os: macos-latest
+            platform: aarch64-apple-darwin
+          - os: macos-15-intel
+            platform: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+
+      - uses: julia-actions/cache@v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-libs-${{ matrix.platform }}
+
+      # Test exactly the libraries built above (Pkg.build would fetch the ones
+      # already published in the release). Install them BEFORE anything
+      # precompiles the package: it fixes its library paths at precompile time.
+      - name: Install the built libraries
+        run: |
+          mkdir -p lib/ext/shared
+          unzip -o ${{ matrix.platform }}.zip -d lib/ext/shared
+          ls -l lib/ext/shared/${{ matrix.platform }}
+
+      - name: Install dependencies
+        run: julia --color=yes --project -e 'import Pkg; Pkg.instantiate()'
+
+      - name: Run tests
+        run: julia --color=yes --project -e 'import Pkg; Pkg.test()'
+
+  upload:
+    name: Upload to ${{ inputs.release_tag }}
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: macos-libs-*
+          merge-multiple: true
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          case "$TAG" in
+            libs-*) ;;
+            *) echo "release_tag must be a libs-* release, got '$TAG'"; exit 1 ;;
+          esac
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null || {
+            echo "Release $TAG does not exist. Upload to an existing libs-* release."
+            exit 1
+          }
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            aarch64-apple-darwin.zip x86_64-apple-darwin.zip

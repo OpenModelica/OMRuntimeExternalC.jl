@@ -751,4 +751,19 @@ const ORC = OMRuntimeExternalC
     end
   end
 
+  @testset "ModelicaFFT_kiss_fftr" begin
+    #= u = 1 + cos(2pi*n/8) + 2*sin(2pi*2n/8): X_0 = 8, X_1 = 4, X_2 = -8im;
+       amplitudes |X_k| / nf with nf = 5, phases in radians. =#
+    local nu = 8
+    local u = [1 + cospi(2n / nu) + 2 * sinpi(4n / nu) for n in 0:(nu - 1)]
+    local work = zeros(3 * nu + 2 * 5)
+    local A = zeros(5)
+    local Phi = zeros(5)
+    @test ORC.ModelicaFFT_kiss_fftr(u, nu, work, length(work), A, Phi) == 0
+    @test A ≈ [8, 4, 8, 0, 0] ./ 5 atol = 1e-12
+    @test Phi[1:3] ≈ [0, 0, -pi / 2] atol = 1e-12
+    @test ORC.ModelicaFFT_kiss_fftr(u[1:7], 7, work, length(work), A, Phi) == 1
+    @test ORC.ModelicaFFT_kiss_fftr(u, nu, work, 10, A, Phi) == 2
+  end
+
 end
