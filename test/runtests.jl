@@ -216,6 +216,28 @@ const ORC = OMRuntimeExternalC
     end
   end
 
+  #= A model is evaluated before its initialization calls getNextTimeEvent (OMBackend's
+     build-time initialization): getValue on a table with events then read its event
+     intervals before they existed and the process crashed (Blocks.Examples.Interaction1).
+     As the MSL IntegerTable and BooleanTable call it there: startTime = -1e60,
+     nextTimeEvent = pre(nextTimeEvent) = 0 = t. =#
+  @testset "CombiTimeTable read before its first nextTimeEvent" begin
+    local table::Matrix{Float64} = [0.0 0.0; 1.0 2.0; 2.0 4.0; 3.0 6.0; 4.0 4.0; 6.0 2.0]
+    for extrapolation in (1, 3)  #= HoldLastPoint, Periodic =#
+      local tableID = ORC.ModelicaStandardTables_CombiTimeTable_init2(
+        "NoName", "NoName", table, size(table, 1), size(table, 2),
+        -1.0e60, [2], 1,
+        3,  #= ConstantSegments =#
+        extrapolation,
+        0.0, 1, 0)
+      @test isfinite(ORC.ModelicaStandardTables_CombiTimeTable_getValue(tableID, 1, 0.0, 0.0, 0.0))
+      @test ORC.ModelicaStandardTables_CombiTimeTable_nextTimeEvent(tableID, 0.0) == 1.0
+      @test ORC.ModelicaStandardTables_CombiTimeTable_nextTimeEvent(tableID, 1.0) == 2.0
+      @test ORC.ModelicaStandardTables_CombiTimeTable_getValue(tableID, 1, 1.5, 2.0, 2.0) == 2.0
+      ORC.ModelicaStandardTables_CombiTimeTable_close(tableID)
+    end
+  end
+
   @testset "CombiTimeTable with Vector{Vector} input" begin
     local vecVec::Vector{Vector{Float64}} = [
       [0.0, 100.0],
