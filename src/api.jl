@@ -1008,14 +1008,24 @@ ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int6
   If unsignedNumber != 0, only unsigned numbers are recognized.
   Returns (nextIndex, number).
 """
-function ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int64)
+function ModelicaStrings_scanReal(string::String, startIndex::Integer, unsignedNumber::Integer)
   nextIndex = Ref{Cint}(0)
   number = Ref{Cdouble}(0.0)
   ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
-        string, startIndex, unsignedNumber, nextIndex, number)
+        string, Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
   return (Int64(nextIndex[]), Float64(number[]))
+end
+
+#= Output-by-reference, as the Modelica external "C" declaration calls it (unsigned a
+   Boolean: Modelica.Utilities.Strings.scanReal in Buildings' weather data reader). =#
+function ModelicaStrings_scanReal(string::AbstractString, startIndex::Integer, unsignedNumber::Integer,
+                                  nextIndex::Ref{Cint}, number::Ref{Cdouble})
+  ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
+        String(string), Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
 end
 
 """
