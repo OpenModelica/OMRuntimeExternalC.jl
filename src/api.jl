@@ -448,6 +448,19 @@ function ModelicaStandardTables_CombiTimeTable_init2(
   local res = ccall((:ModelicaStandardTables_CombiTimeTable_init2, installedLibPath), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t, Cint, Cint, Cdouble, Cint, Cint),
                     fileName, tableName, tableCShape, nRow, nColumn, startTime, columnsCInt, nCols, smoothness, extrapolation, shiftTime, timeEvents, verbose)
+  #= A table's event intervals are set up by its first nextTimeEvent call, and getValue
+     before it read out of bounds (a segfault). OMBackend evaluates the model before the
+     initialization's getNextTimeEvent (Blocks.Examples.Interaction1), so the table gets
+     that call here; the model's own calls follow as in OpenModelica (an earlier time
+     resets the bookkeeping, the same time returns the cached event). At the start time,
+     but not before the table's first time: the MSL IntegerTable and BooleanTable start
+     at -1e60, from which a periodic table steps period by period. =#
+  if res != C_NULL
+    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+                       Cdouble, (Ptr{Cvoid},), res)
+    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+          Cdouble, (Ptr{Cvoid}, Cdouble), res, max(startTime, tMin))
+  end
   res
 end
 
