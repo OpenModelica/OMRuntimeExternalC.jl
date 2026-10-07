@@ -1544,3 +1544,48 @@ function ModelicaRandom_convertRealToIntegers(d::Real, i)
   )
   return nothing
 end
+
+#= MSL 4.1's table interface: init2's arguments and a CSV file's delimiter and header lines
+   (Modelica.Blocks.Tables, Modelica.Blocks.Sources.CombiTimeTable of MSL 4.1). The table is
+   passed row-major, as init2 does. =#
+_tableRowMajor(table::AbstractVector{<:AbstractVector}) =
+  isempty(table) ? Float64[] : _tableRowMajor(stack(table; dims = 1))
+_tableRowMajor(table::AbstractMatrix) = Float64[table[j, i] for j in 1:size(table, 1) for i in 1:size(table, 2)]
+
+function ModelicaStandardTables_CombiTimeTable_init3(fileName, tableName, table, nRow, nColumn, startTime,
+                                                     columns, nCols, smoothness, extrapolation, shiftTime,
+                                                     timeEvents, verbose, delimiter, nHeaderLines)
+  local tab = _tableRowMajor(table)
+  local cols = convert(Vector{Cint}, collect(columns))
+  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init3, installedLibPath), Ptr{Cvoid},
+                    (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t,
+                     Cint, Cint, Cdouble, Cint, Cint, Cstring, Cint),
+                    fileName, tableName, tab, nRow, nColumn, startTime, cols, nCols,
+                    smoothness, extrapolation, shiftTime, timeEvents, verbose, delimiter, nHeaderLines)
+  #= the table's first nextTimeEvent call, as init2 =#
+  if res != C_NULL
+    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+                       Cdouble, (Ptr{Cvoid},), res)
+    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+          Cdouble, (Ptr{Cvoid}, Cdouble), res, max(startTime, tMin))
+  end
+  return res
+end
+
+function ModelicaStandardTables_CombiTable1D_init3(fileName, tableName, table, nRow, nColumn, columns, nCols,
+                                                   smoothness, extrapolation, verbose, delimiter, nHeaderLines)
+  local tab = _tableRowMajor(table)
+  local cols = convert(Vector{Cint}, collect(columns))
+  return ccall((:ModelicaStandardTables_CombiTable1D_init3, installedLibPath), Ptr{Cvoid},
+               (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint, Cstring, Cint),
+               fileName, tableName, tab, nRow, nColumn, cols, nCols, smoothness, extrapolation, verbose,
+               delimiter, nHeaderLines)
+end
+
+function ModelicaStandardTables_CombiTable2D_init3(fileName, tableName, table, nRow, nColumn,
+                                                   smoothness, extrapolation, verbose, delimiter, nHeaderLines)
+  local tab = _tableRowMajor(table)
+  return ccall((:ModelicaStandardTables_CombiTable2D_init3, installedLibPath), Ptr{Cvoid},
+               (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint, Cstring, Cint),
+               fileName, tableName, tab, nRow, nColumn, smoothness, extrapolation, verbose, delimiter, nHeaderLines)
+end
