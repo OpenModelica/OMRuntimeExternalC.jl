@@ -936,6 +936,11 @@ function ModelicaStrings_compare(string1::String, string2::String, caseSensitive
   return Int64(res)
 end
 
+#= caseSensitive as the Modelica Boolean it is (Modelica.Utilities.Strings.compare called
+   from a Modelica function: Buildings' getPeakLoad, the weather data reader). =#
+ModelicaStrings_compare(string1::AbstractString, string2::AbstractString, caseSensitive::Bool) =
+  ModelicaStrings_compare(String(string1), String(string2), Int64(caseSensitive))
+
 """
 MODELICA_EXPORT void ModelicaStrings_scanIdentifier(_In_z_ const char* string, int startIndex,
                                                      int* nextIndex, const char** identifier);
