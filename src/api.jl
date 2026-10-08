@@ -1567,9 +1567,15 @@ _tableRowMajor(table::AbstractVector{<:AbstractVector}) =
   isempty(table) ? Float64[] : _tableRowMajor(stack(table; dims = 1))
 _tableRowMajor(table::AbstractMatrix) = Float64[table[j, i] for j in 1:size(table, 1) for i in 1:size(table, 2)]
 
-function ModelicaStandardTables_CombiTimeTable_init3(fileName, tableName, table, nRow, nColumn, startTime,
-                                                     columns, nCols, smoothness, extrapolation, shiftTime,
-                                                     timeEvents, verbose, delimiter, nHeaderLines)
+#= The table as the generated code passes it: a matrix, or a vector of its rows. =#
+const _TableArg = Union{AbstractMatrix{<:Real}, AbstractVector{<:AbstractVector{<:Real}}}
+
+function ModelicaStandardTables_CombiTimeTable_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                     nRow::Integer, nColumn::Integer, startTime::Real,
+                                                     columns::AbstractVector{<:Integer}, nCols::Integer,
+                                                     smoothness::Integer, extrapolation::Integer, shiftTime::Real,
+                                                     timeEvents::Integer, verbose::Integer, delimiter::AbstractString,
+                                                     nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
   local cols = convert(Vector{Cint}, collect(columns))
   local res = ccall((:ModelicaStandardTables_CombiTimeTable_init3, installedLibPath), Ptr{Cvoid},
@@ -1587,8 +1593,10 @@ function ModelicaStandardTables_CombiTimeTable_init3(fileName, tableName, table,
   return res
 end
 
-function ModelicaStandardTables_CombiTable1D_init3(fileName, tableName, table, nRow, nColumn, columns, nCols,
-                                                   smoothness, extrapolation, verbose, delimiter, nHeaderLines)
+function ModelicaStandardTables_CombiTable1D_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                   nRow::Integer, nColumn::Integer, columns::AbstractVector{<:Integer},
+                                                   nCols::Integer, smoothness::Integer, extrapolation::Integer,
+                                                   verbose::Integer, delimiter::AbstractString, nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
   local cols = convert(Vector{Cint}, collect(columns))
   return ccall((:ModelicaStandardTables_CombiTable1D_init3, installedLibPath), Ptr{Cvoid},
@@ -1597,8 +1605,10 @@ function ModelicaStandardTables_CombiTable1D_init3(fileName, tableName, table, n
                delimiter, nHeaderLines)
 end
 
-function ModelicaStandardTables_CombiTable2D_init3(fileName, tableName, table, nRow, nColumn,
-                                                   smoothness, extrapolation, verbose, delimiter, nHeaderLines)
+function ModelicaStandardTables_CombiTable2D_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                   nRow::Integer, nColumn::Integer, smoothness::Integer,
+                                                   extrapolation::Integer, verbose::Integer, delimiter::AbstractString,
+                                                   nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
   return ccall((:ModelicaStandardTables_CombiTable2D_init3, installedLibPath), Ptr{Cvoid},
                (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint, Cstring, Cint),
