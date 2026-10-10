@@ -936,6 +936,11 @@ function ModelicaStrings_compare(string1::String, string2::String, caseSensitive
   return Int64(res)
 end
 
+#= caseSensitive as the Modelica Boolean it is (Modelica.Utilities.Strings.compare called
+   from a Modelica function: Buildings' getPeakLoad, the weather data reader). =#
+ModelicaStrings_compare(string1::AbstractString, string2::AbstractString, caseSensitive::Bool) =
+  ModelicaStrings_compare(String(string1), String(string2), Int64(caseSensitive))
+
 """
 MODELICA_EXPORT void ModelicaStrings_scanIdentifier(_In_z_ const char* string, int startIndex,
                                                      int* nextIndex, const char** identifier);
@@ -1003,14 +1008,24 @@ ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int6
   If unsignedNumber != 0, only unsigned numbers are recognized.
   Returns (nextIndex, number).
 """
-function ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int64)
+function ModelicaStrings_scanReal(string::String, startIndex::Integer, unsignedNumber::Integer)
   nextIndex = Ref{Cint}(0)
   number = Ref{Cdouble}(0.0)
   ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
-        string, startIndex, unsignedNumber, nextIndex, number)
+        string, Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
   return (Int64(nextIndex[]), Float64(number[]))
+end
+
+#= Output-by-reference, as the Modelica external "C" declaration calls it (unsigned a
+   Boolean: Modelica.Utilities.Strings.scanReal in Buildings' weather data reader). =#
+function ModelicaStrings_scanReal(string::AbstractString, startIndex::Integer, unsignedNumber::Integer,
+                                  nextIndex::Ref{Cint}, number::Ref{Cdouble})
+  ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
+        String(string), Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
 end
 
 """
@@ -1543,4 +1558,59 @@ function ModelicaRandom_convertRealToIntegers(d::Real, i)
     Cdouble(d), i,
   )
   return nothing
+end
+
+#= MSL 4.1's table interface: init2's arguments and a CSV file's delimiter and header lines
+   (Modelica.Blocks.Tables, Modelica.Blocks.Sources.CombiTimeTable of MSL 4.1). The table is
+   passed row-major, as init2 does. =#
+_tableRowMajor(table::AbstractVector{<:AbstractVector}) =
+  isempty(table) ? Float64[] : _tableRowMajor(stack(table; dims = 1))
+_tableRowMajor(table::AbstractMatrix) = Float64[table[j, i] for j in 1:size(table, 1) for i in 1:size(table, 2)]
+
+#= The table as the generated code passes it: a matrix, or a vector of its rows. =#
+const _TableArg = Union{AbstractMatrix{<:Real}, AbstractVector{<:AbstractVector{<:Real}}}
+
+function ModelicaStandardTables_CombiTimeTable_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                     nRow::Integer, nColumn::Integer, startTime::Real,
+                                                     columns::AbstractVector{<:Integer}, nCols::Integer,
+                                                     smoothness::Integer, extrapolation::Integer, shiftTime::Real,
+                                                     timeEvents::Integer, verbose::Integer, delimiter::AbstractString,
+                                                     nHeaderLines::Integer)
+  local tab = _tableRowMajor(table)
+  local cols = convert(Vector{Cint}, collect(columns))
+  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init3, installedLibPath), Ptr{Cvoid},
+                    (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t,
+                     Cint, Cint, Cdouble, Cint, Cint, Cstring, Cint),
+                    fileName, tableName, tab, nRow, nColumn, startTime, cols, nCols,
+                    smoothness, extrapolation, shiftTime, timeEvents, verbose, delimiter, nHeaderLines)
+  #= the table's first nextTimeEvent call, as init2 =#
+  if res != C_NULL
+    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+                       Cdouble, (Ptr{Cvoid},), res)
+    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+          Cdouble, (Ptr{Cvoid}, Cdouble), res, max(startTime, tMin))
+  end
+  return res
+end
+
+function ModelicaStandardTables_CombiTable1D_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                   nRow::Integer, nColumn::Integer, columns::AbstractVector{<:Integer},
+                                                   nCols::Integer, smoothness::Integer, extrapolation::Integer,
+                                                   verbose::Integer, delimiter::AbstractString, nHeaderLines::Integer)
+  local tab = _tableRowMajor(table)
+  local cols = convert(Vector{Cint}, collect(columns))
+  return ccall((:ModelicaStandardTables_CombiTable1D_init3, installedLibPath), Ptr{Cvoid},
+               (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint, Cstring, Cint),
+               fileName, tableName, tab, nRow, nColumn, cols, nCols, smoothness, extrapolation, verbose,
+               delimiter, nHeaderLines)
+end
+
+function ModelicaStandardTables_CombiTable2D_init3(fileName::AbstractString, tableName::AbstractString, table::_TableArg,
+                                                   nRow::Integer, nColumn::Integer, smoothness::Integer,
+                                                   extrapolation::Integer, verbose::Integer, delimiter::AbstractString,
+                                                   nHeaderLines::Integer)
+  local tab = _tableRowMajor(table)
+  return ccall((:ModelicaStandardTables_CombiTable2D_init3, installedLibPath), Ptr{Cvoid},
+               (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint, Cstring, Cint),
+               fileName, tableName, tab, nRow, nColumn, smoothness, extrapolation, verbose, delimiter, nHeaderLines)
 end

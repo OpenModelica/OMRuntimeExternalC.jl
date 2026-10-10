@@ -130,6 +130,24 @@ char* ModelicaAllocateStringWithErrorReturn(size_t len) {
     return (char *)malloc(len + 1);
 }
 
+/* MSL 4.1's ModelicaUtilities.h adds these (ModelicaInternal_readLine and the
+   ModelicaStrings functions call them): without them the call is through a null
+   pointer. */
+char* ModelicaDuplicateString(const char *str) {
+    size_t len = strlen(str);
+    char *s = ModelicaAllocateString(len);
+    if (!s) ModelicaError("ModelicaDuplicateString: out of memory");
+    memcpy(s, str, len + 1);
+    return s;
+}
+
+char* ModelicaDuplicateStringWithErrorReturn(const char *str) {
+    size_t len = strlen(str);
+    char *s = ModelicaAllocateStringWithErrorReturn(len);
+    if (s) memcpy(s, str, len + 1);
+    return s;
+}
+
 /* ---- Safe wrappers: setjmp in C, call target via dlsym ---- */
 /* Return 0 on success, 1 on error (message in modelica_get_error_msg()) */
 
