@@ -20,7 +20,7 @@ on:
       msl_ref:
         description: "ModelicaStandardLibrary tag with the C sources"
         required: false
-        default: "v4.0.0"
+        default: "v4.1.0"
   pull_request:
     paths:
       - "deps/build_msl_c_macos.sh"
@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: modelica/ModelicaStandardLibrary
-          ref: ${{ inputs.msl_ref || 'v4.0.0' }}
+          ref: ${{ inputs.msl_ref || 'v4.1.0' }}
           path: msl
           sparse-checkout: Modelica/Resources/C-Sources
 
