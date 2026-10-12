@@ -5,7 +5,7 @@
 #   deps/build_msl_c_macos.sh <MSL C-Sources dir> <output dir>
 #
 # <MSL C-Sources dir> is Modelica/Resources/C-Sources of a ModelicaStandardLibrary
-# checkout (CI uses tag v4.0.0). The output dir receives
+# checkout (CI uses tag v4.1.0). The output dir receives
 #   libModelicaMatIO, libModelicaIO, libModelicaStandardTables,
 #   libModelicaExternalC, libModelicaCallbacks (.dylib)
 # for the host architecture. Set MACOS_ARCH=x86_64|arm64 to cross-compile.
