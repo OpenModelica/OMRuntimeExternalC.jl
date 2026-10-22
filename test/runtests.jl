@@ -583,6 +583,17 @@ const ORC = OMRuntimeExternalC
       @test nextIdx == 6
     end
 
+    @testset "ModelicaStrings_scanIdentifier and scanString Ref-accepting overloads" begin
+      #= as the Modelica external "C" declarations call them (Strings.scanToken in MSL's readRealParameter) =#
+      local nextIdx = Ref{Cint}(0)
+      local ident = Ref{Cstring}(C_NULL)
+      ORC.ModelicaStrings_scanIdentifier("myVar = 42", 1, nextIdx, ident)
+      @test nextIdx[] == 6 && unsafe_string(ident[]) == "myVar"
+      local result = Ref{Cstring}(C_NULL)
+      ORC.ModelicaStrings_scanString("  \"abc\" rest", 1, nextIdx, result)
+      @test nextIdx[] == 8 && unsafe_string(result[]) == "abc"
+    end
+
     @testset "ModelicaStrings_hashString" begin
       #= Same string should produce the same hash =#
       @test ORC.ModelicaStrings_hashString("test") == ORC.ModelicaStrings_hashString("test")
