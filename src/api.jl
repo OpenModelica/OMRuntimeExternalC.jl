@@ -964,6 +964,16 @@ function ModelicaStrings_scanIdentifier(string::String, startIndex::Int64)
   return (Int64(nextIndex[]), idStr)
 end
 
+#= Output-by-reference, as the Modelica external "C" declaration calls it (Modelica.Utilities.Strings
+   .scanToken, which MSL's readRealParameter calls). =#
+function ModelicaStrings_scanIdentifier(string::AbstractString, startIndex::Integer, nextIndex::Ref{Cint},
+                                        identifier::Ref{Cstring})
+  ccall((:ModelicaStrings_scanIdentifier, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
+        String(string), Cint(startIndex), nextIndex, identifier)
+end
+
 """
 MODELICA_EXPORT void ModelicaStrings_scanInteger(_In_z_ const char* string, int startIndex,
                                                   int unsignedNumber, int* nextIndex, int* integerNumber);
@@ -1049,6 +1059,16 @@ function ModelicaStrings_scanString(string::String, startIndex::Int64)
         string, startIndex, nextIndex, result)
   local resStr = result[] == C_NULL ? "" : unsafe_string(result[])
   return (Int64(nextIndex[]), resStr)
+end
+
+#= Output-by-reference, as the Modelica external "C" declaration calls it (Modelica.Utilities.Strings
+   .scanToken, which MSL's readRealParameter calls). =#
+function ModelicaStrings_scanString(string::AbstractString, startIndex::Integer, nextIndex::Ref{Cint},
+                                    result::Ref{Cstring})
+  ccall((:ModelicaStrings_scanString, installedLibPathlibModelicaExternalC),
+        Cvoid,
+        (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
+        String(string), Cint(startIndex), nextIndex, result)
 end
 
 """
