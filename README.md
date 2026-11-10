@@ -1,4 +1,4 @@
-# OMRuntimeExternalC.jl
+# OMRuntimeExternalC.jl [![License: OSMC-PL](https://img.shields.io/badge/license-OSMC--PL-lightgrey.svg)](LICENSE.md)
 
 Julia bindings to the external C functions of the Modelica Standard Library (MSL): the table functions
 (`CombiTable1D`, `CombiTable2D`, `CombiTimeTable`), strings, MAT-file I/O, files and streams, random
@@ -54,8 +54,9 @@ deps/check_library.sh deps/usr/lib/libModelicaExternalC.*                  # dep
 `MACOS_ARCH=x86_64|arm64` cross-compiles on macOS. The build takes about 6 s.
 
 ### Release
-`.github/workflows/CI.yml` builds and tests on the five platforms. Run by hand with `release_tag` set
-(`libs-v1.0.0`) it creates that release with the tarballs and hands back the `Artifacts.toml` for them
+`.github/workflows/CI.yml` builds the library on the five platforms, checks it and tests the package against it,
+on every pull request and push. A pushed tag `libs-v1.0.0` (or a run by hand with `release_tag` set) also
+creates that release with the tarballs and hands back the `Artifacts.toml` for them
 (`deps/bind_artifacts.jl`), which is committed. `deps/Yggdrasil/build_tarballs.jl` is the draft of a
 recipe for a `ModelicaExternalC_jll`, as the alternative to the artifact.
 
@@ -76,7 +77,19 @@ shim) ends the process.
 
 ## License
 
-This package: the [OSMC Public License](LICENSE.md) 1.8 or the AGPL version 3, at your choice.
-The library contains C sources of the Modelica Standard Library under their own licenses, mostly the
-3-clause BSD license, and zlib: see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which ships with the library
-(`share/licenses/ModelicaExternalC`).
+**This package** is under the OSMC Public License (OSMC-PL) 1.8, like the other OMJL packages: see
+[LICENSE.md](LICENSE.md). This covers the Julia code (`src/`, `test/`), the C shim
+`src/C/ModelicaCallbacks.c` and the build scripts in `deps/`.
+
+**The C files from the Modelica Standard Library are the MSL's, and the MSL's license applies to them.**
+`libModelicaExternalC` is built from the C sources of the Modelica Standard Library
+(`Modelica/Resources/C-Sources`, tag `v4.1.0`: ModelicaStandardTables, ModelicaIO, ModelicaMatIO,
+ModelicaInternal, ModelicaStrings, ModelicaRandom, ModelicaFFT, with the zlib and the matio and kiss_fft
+code they contain). Those files are not part of this package and not under the OSMC-PL. They are not copied
+into this repository: `deps/build_libraries.sh` and the CI take them from the Standard Library. They are
+licensed by the Modelica Association and contributors under the
+[3-clause BSD license](https://modelica.org/licenses/modelica-3-clause-bsd) (each file has the text in its
+header), and the zlib sources under the zlib license. [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) lists
+every compiled file with its copyright holders and license, and has the license texts. It ships with the
+library (`share/licenses/ModelicaExternalC` in the artifact), so a redistributed binary carries the notices
+that these licenses require.

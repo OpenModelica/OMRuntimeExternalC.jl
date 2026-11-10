@@ -5,13 +5,14 @@ name: CI
 # of the package on Julia 1.13 against that build, and keeps the tarball of the platform (the artifact
 # "ModelicaExternalC" of Artifacts.toml).
 #
-# Run by hand with release_tag set (libs-v1.0.0): the tarballs of all platforms go to that GitHub
-# release, and the run's Artifacts.toml has their entries (deps/bind_artifacts.jl): commit it.
+# Release: push a tag libs-vX.Y.Z (or run by hand with release_tag set): the tarballs of all platforms go to
+# that GitHub release, and the run's Artifacts.toml has their entries (deps/bind_artifacts.jl): commit it.
 
 on:
   pull_request:
   push:
     branches: [master]
+    tags: ['libs-v*']
   workflow_dispatch:
     inputs:
       release_tag:
@@ -90,9 +91,9 @@ jobs:
       - uses: julia-actions/julia-runtest@v1
 
   release:
-    name: Release ${{ inputs.release_tag }}
+    name: Release ${{ inputs.release_tag || github.ref_name }}
     needs: library
-    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    if: (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') || startsWith(github.ref, 'refs/tags/libs-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,15 +113,17 @@ jobs:
       - name: Create the release with the tarballs
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.release_tag }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           ls -l dist
-          gh release create "$TAG" dist/ModelicaExternalC.*.tar.gz \
+          gh release create "$TAG" dist/ModelicaExternalC.*.tar.gz --target "$GITHUB_SHA" \
             --title "libModelicaExternalC $TAG" \
             --notes "Built from the C sources of the Modelica Standard Library v4.1.0 ($MSL_COMMIT) and src/C/ModelicaCallbacks.c at ${GITHUB_SHA}. Licenses: THIRD_PARTY_LICENSES.md."
 
       - name: Write the entries of Artifacts.toml
-        run: julia deps/bind_artifacts.jl "${{ inputs.release_tag }}" dist
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: julia deps/bind_artifacts.jl "$TAG" dist
 
       - uses: actions/upload-artifact@v4
         with:
