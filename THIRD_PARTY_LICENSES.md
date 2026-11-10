@@ -16,7 +16,7 @@ the OSMC-PL, each MSL source under the license named in its own header, as liste
 | `ModelicaMatIO.c`: matio, concatenated | The matio contributors (2015-2024), Christopher C. Hulbert (2005-2014), Modelica Association and contributors | BSD 3-Clause (the same file header) |
 | `snprintf.c` | Patrick Powell (1995), Holger Weiss (2008) | Permissive notices of the file: use "for any purpose as long as this notice remains intact" (Powell); free use, modification and redistribution "for any purpose" (Weiss) |
 | `zlib/*.c` (15 files) | Jean-loup Gailly and Mark Adler (1995-2024), zlib 1.3.1 | zlib license (text below) |
-| `gconstructor.h` (macros for constructors; included by `ModelicaInternal.c` and `ModelicaRandom.c`) | GLib (the file has no license header in the MSL) | Origin: GLib, LGPL-2.1-or-later (see the open point below) |
+| `gconstructor.h` (macros for constructors; included by `ModelicaInternal.c`, `ModelicaRandom.c` and `ModelicaStandardTables.c`) | GLib (the file has no license header in the MSL) | Origin: GLib, LGPL-2.1-or-later (see the note below) |
 
 Not compiled into the library: `uthash.h` (BSD, Troy D. Hanson; used only when `TABLE_SHARE` is set, it is not),
 `safe-math.h` (CC0 1.0, Evan Nemerson), `win32_dirent.c` (public domain, Visual C++ only), `stdint_msvc.h`.
@@ -24,8 +24,13 @@ Not compiled into the library: `uthash.h` (BSD, Troy D. Hanson; used only when `
 The library links no other library than the C library of the platform. It contains no code of the OpenModelica
 runtime, BLAS, SUNDIALS or gettext.
 
-Open point: the MSL copy of `gconstructor.h` carries no license text. Its origin is GLib's file of the same name (LGPL-2.1-or-later).
-It only defines the macros that run a function when the library loads and unloads.
+Note on `gconstructor.h`: the MSL copy carries no license text. Its origin is GLib's file of the same name
+(LGPL-2.1-or-later). With gcc and clang, the compilers `deps/build_libraries.sh` uses, the library takes two
+one-line macros from it (`G_DEFINE_CONSTRUCTOR`, `G_DEFINE_DESTRUCTOR`: a function declaration with
+`__attribute__((constructor))` or `__attribute__((destructor))`), which run a function when the library loads
+and unloads. Section 5 of the LGPL 2.1 leaves the use of an object file unrestricted when it takes only "small
+macros and small inline functions (ten lines or less in length)" from a header. The header is not in this
+repository and not in the tarballs. Raised with the MSL: not yet (the missing header text is theirs to add).
 
 ## BSD 3-Clause (Modelica Association and contributors)
 
