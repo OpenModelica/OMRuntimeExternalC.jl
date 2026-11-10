@@ -18,6 +18,9 @@ ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 GettextRuntime_jll = "0.22"
 Libiconv_jll = "1"
 julia = "1.13"
+Glob = "1"
+Inflate = "0.1"
+ZipFile = "0.10"
 
 [extras]
 Glib_jll = "7746bdde-850d-59dc-9ae8-88ece973131d"
