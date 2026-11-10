@@ -37,9 +37,10 @@ jobs:
         include:
           - {os: macos-latest,     triplet: aarch64-apple-darwin, subdir: lib, shell: bash}
           - {os: macos-15-intel,   triplet: x86_64-apple-darwin,  subdir: lib, shell: bash}
-          # Ubuntu 22.04: glibc 2.35, so the library runs on the distributions of the last years
-          - {os: ubuntu-22.04,     triplet: x86_64-linux-gnu,     subdir: lib, shell: bash}
-          - {os: ubuntu-22.04-arm, triplet: aarch64-linux-gnu,    subdir: lib, shell: bash}
+          # Linux: the library is built in a manylinux_2_28 container (AlmaLinux 8, glibc 2.28), so it runs on
+          # every distribution with glibc 2.28 or newer (RHEL 8, Debian 10, Ubuntu 18.10); the tests run on the runner
+          - {os: ubuntu-22.04,     triplet: x86_64-linux-gnu,     subdir: lib, shell: bash, manylinux: manylinux_2_28_x86_64}
+          - {os: ubuntu-22.04-arm, triplet: aarch64-linux-gnu,    subdir: lib, shell: bash, manylinux: manylinux_2_28_aarch64}
           - {os: windows-latest,   triplet: x86_64-w64-mingw32,   subdir: bin, shell: "msys2 {0}"}
     defaults:
       run:
@@ -65,7 +66,15 @@ jobs:
           sparse-checkout: Modelica/Resources/C-Sources
 
       - name: Build libModelicaExternalC
+        if: matrix.manylinux == ''
         run: deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/${{ matrix.subdir }}
+
+      # as the runner's user: the files in the workspace stay deletable by the runner
+      - name: Build libModelicaExternalC (manylinux_2_28 container)
+        if: matrix.manylinux != ''
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w quay.io/pypa/${{ matrix.manylinux }} \
+            deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/${{ matrix.subdir }}
 
       - name: Check its dependencies and exports
         run: deps/check_library.sh deps/usr/${{ matrix.subdir }}/libModelicaExternalC.*

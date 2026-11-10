@@ -56,7 +56,7 @@ deps/check_library.sh deps/usr/lib/libModelicaExternalC.*                  # dep
 ### Release
 `.github/workflows/CI.yml` builds the library on the five platforms, checks it and tests the package against it,
 on every pull request and push. A pushed tag `libs-v1.0.0` (or a run by hand with `release_tag` set) also
-creates that release with the tarballs and hands back the `Artifacts.toml` for them
+creates that release with the tarballs (Linux built in a manylinux_2_28 container: glibc 2.28 or newer) and hands back the `Artifacts.toml` for them
 (`deps/bind_artifacts.jl`), which is committed. `deps/Yggdrasil/build_tarballs.jl` is the draft of a
 recipe for a `ModelicaExternalC_jll`, as the alternative to the artifact.
 
