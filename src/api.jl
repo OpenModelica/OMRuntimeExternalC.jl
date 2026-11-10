@@ -1,13 +1,13 @@
 #= Add functions for the Modelica External C API here. =#
 
-#= ---- Safe ccall error handling via ModelicaCallbacks shim ---- =#
+#= ---- Safe ccall error handling via the C shim (src/C/ModelicaCallbacks.c) ---- =#
 #=
-  The C shim (libModelicaCallbacks.so) provides:
-  - Replacement ModelicaFormatError/ModelicaError that use setjmp/longjmp
-    instead of the OMC runtime's uninitialized thread-local jump buffers.
-  - safe_* wrapper functions that do setjmp entirely in C, call the target
-    function via dlsym, and return 0 on success or nonzero on error.
-    Error message is retrieved via modelica_get_error_msg().
+  libModelicaExternalC contains the C sources of the Modelica Standard Library and a C shim that
+  provides:
+  - ModelicaFormatError/ModelicaError (ModelicaUtilities.h), which jump (longjmp) to the safe_*
+    function that is running.
+  - safe_* wrapper functions that do setjmp entirely in C, call the Modelica function, and return
+    0 on success or nonzero on error. The error message is retrieved via modelica_get_error_msg().
   This avoids longjmp across Julia ccall boundaries (which is undefined behavior).
 =#
 
@@ -17,11 +17,11 @@
 Retrieve the error message from the last failed safe_* call.
 """
 function get_modelica_error()::String
-  if installedLibPathlibModelicaCallbacks === nothing
-    return "ModelicaCallbacks shim not loaded"
+  if libraryPath() === nothing
+    return "libModelicaExternalC not loaded"
   end
   ptr = ccall(
-    (:modelica_get_error_msg, installedLibPathlibModelicaCallbacks),
+    (:modelica_get_error_msg, libModelicaExternalC),
     Cstring, (),
   )
   return ptr == C_NULL ? "" : unsafe_string(ptr)
@@ -95,7 +95,7 @@ function ModelicaStandardTables_CombiTable1D_init2(
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
   local columnsCInt = convert(Vector{Cint}, columns)
-  local res = ccall((:ModelicaStandardTables_CombiTable1D_init2, installedLibPath), Ptr{Cvoid},
+  local res = ccall((:ModelicaStandardTables_CombiTable1D_init2, libModelicaExternalC), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint),
                     fileName, tableName, tableCShape, nRow, nColumn, columnsCInt, nCols, smoothness, extrapolation, verbose)
   res
@@ -175,7 +175,7 @@ end
 
 function ModelicaStandardTables_CombiTable1D_close(tableID::ExternalCombiTable1D)
   res = ccall(
-    (:ModelicaStandardTables_CombiTable1D_close, installedLibPath),
+    (:ModelicaStandardTables_CombiTable1D_close, libModelicaExternalC),
     Cvoid #= Returns =#,
     (Ptr{Cvoid},),
     tableID,)
@@ -210,7 +210,7 @@ function ModelicaStandardTables_CombiTable1D_getDerValue(
   )
   local res = 0
   try
-    res = ccall((:ModelicaStandardTables_CombiTable1D_getDerValue, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTable1D_getDerValue, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cint, Cdouble, Cdouble),
                 tableID, icol, u, der_u)
@@ -235,7 +235,7 @@ function ModelicaStandardTables_CombiTable1D_getValue(
   icol::Int64,
   u::Float64,
   )::Float64
-  res = ccall((:ModelicaStandardTables_CombiTable1D_getValue, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTable1D_getValue, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cint, Cdouble),
               tableID, icol, u)
@@ -251,7 +251,7 @@ end
   ModelicaStandardTables_CombiTable1D_maximumAbscissa(tableID::ExternalCombiTable1D)::Float64
 """
 function ModelicaStandardTables_CombiTable1D_maximumAbscissa(tableID::ExternalCombiTable1D)::Float64
-  res = ccall((:ModelicaStandardTables_CombiTable1D_maximumAbscissa, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTable1D_maximumAbscissa, libModelicaExternalC),
               #= Returns =# Cdouble,
               (Ptr{Cvoid},),
               tableID)
@@ -268,7 +268,7 @@ end
   ModelicaStandardTables_CombiTable1D_minimumAbscissa(tableID::ExternalCombiTable1D)
 """
 function ModelicaStandardTables_CombiTable1D_minimumAbscissa(tableID::ExternalCombiTable1D)
-    res = ccall((:ModelicaStandardTables_CombiTable1D_minimumAbscissa, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTable1D_minimumAbscissa, libModelicaExternalC),
               #= Returns =# Cdouble,
               (Ptr{Cvoid},),
                 tableID)
@@ -286,7 +286,7 @@ end
 ModelicaStrings_skipWhiteSpace(string::String, startIndex::Int64)
 """
 function ModelicaStrings_skipWhiteSpace(string::String, startIndex::Int64)
-  res = ccall((:ModelicaStrings_skipWhiteSpace, installedLibPathlibModelicaExternalC),
+  res = ccall((:ModelicaStrings_skipWhiteSpace, libModelicaExternalC),
               #= Returns =# Cint,
               (Cstring, Cint),
               string, startIndex)
@@ -303,7 +303,7 @@ end
 ModelicaStrings_length(string::String)
 """
 function ModelicaStrings_length(string::String)
-    res = ccall((:ModelicaStrings_length, installedLibPathlibModelicaExternalC),
+    res = ccall((:ModelicaStrings_length, libModelicaExternalC),
               #= Returns =# Cint,
               (Cstring,),
               string)
@@ -340,7 +340,7 @@ function ModelicaStandardTables_CombiTable1D_getDer2Value(
   )
   local res = 0.0
   try
-    res = ccall((:ModelicaStandardTables_CombiTable1D_getDer2Value, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTable1D_getDer2Value, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble),
                 tableID, icol, u, der_u, der2_u)
@@ -360,7 +360,7 @@ end
 ModelicaStandardTables_CombiTable1D_read(tableID::ExternalCombiTable1D, force::Int64, verbose::Int64)
 """
 function ModelicaStandardTables_CombiTable1D_read(tableID::ExternalCombiTable1D, force::Int64, verbose::Int64)
-  res = ccall((:ModelicaStandardTables_CombiTable1D_read, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTable1D_read, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cint, Cint),
               tableID, force, verbose)
@@ -445,7 +445,7 @@ function ModelicaStandardTables_CombiTimeTable_init2(
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
   local columnsCInt = convert(Vector{Cint}, columns)
-  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init2, installedLibPath), Ptr{Cvoid},
+  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init2, libModelicaExternalC), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t, Cint, Cint, Cdouble, Cint, Cint),
                     fileName, tableName, tableCShape, nRow, nColumn, startTime, columnsCInt, nCols, smoothness, extrapolation, shiftTime, timeEvents, verbose)
   #= A table's event intervals are set up by its first nextTimeEvent call, and getValue
@@ -456,9 +456,9 @@ function ModelicaStandardTables_CombiTimeTable_init2(
      but not before the table's first time: the MSL IntegerTable and BooleanTable start
      at -1e60, from which a periodic table steps period by period. =#
   if res != C_NULL
-    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, libModelicaExternalC),
                        Cdouble, (Ptr{Cvoid},), res)
-    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, libModelicaExternalC),
           Cdouble, (Ptr{Cvoid}, Cdouble), res, max(startTime, tMin))
   end
   res
@@ -472,7 +472,7 @@ end
 
 function ModelicaStandardTables_CombiTimeTable_close(tableID::ExternalCombiTimeTable)
   ccall(
-    (:ModelicaStandardTables_CombiTimeTable_close, installedLibPath),
+    (:ModelicaStandardTables_CombiTimeTable_close, libModelicaExternalC),
     Cvoid #= Returns =#,
     (Ptr{Cvoid},),
     tableID)
@@ -498,7 +498,7 @@ function ModelicaStandardTables_CombiTimeTable_getValue(
   nextTimeEvent::Float64,
   preNextTimeEvent::Float64,
   )::Float64
-  res = ccall((:ModelicaStandardTables_CombiTimeTable_getValue, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_getValue, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble),
               tableID, icol, t, nextTimeEvent, preNextTimeEvent)
@@ -552,7 +552,7 @@ function ModelicaStandardTables_CombiTimeTable_getDerValue(
   )
   local res = 0.0
   try
-    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDerValue, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDerValue, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble, Cdouble),
                 tableID, icol, t, nextTimeEvent, preNextTimeEvent, der_t)
@@ -603,7 +603,7 @@ function ModelicaStandardTables_CombiTimeTable_getDer2Value(
   )
   local res = 0.0
   try
-    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDer2Value, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTimeTable_getDer2Value, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cint, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
                 tableID, icol, t, nextTimeEvent, preNextTimeEvent, der_t, der2_t)
@@ -635,7 +635,7 @@ function ModelicaStandardTables_CombiTimeTable_minimumTime(arg::Ptr)
 end
 
 function ModelicaStandardTables_CombiTimeTable_minimumTime(tableID::ExternalCombiTimeTable)::Float64
-  res = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, libModelicaExternalC),
               #= Returns =# Cdouble,
               (Ptr{Cvoid},),
               tableID)
@@ -649,7 +649,7 @@ function ModelicaStandardTables_CombiTimeTable_maximumTime(arg::Ptr)
 end
 
 function ModelicaStandardTables_CombiTimeTable_maximumTime(tableID::ExternalCombiTimeTable)::Float64
-  res = ccall((:ModelicaStandardTables_CombiTimeTable_maximumTime, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_maximumTime, libModelicaExternalC),
               #= Returns =# Cdouble,
               (Ptr{Cvoid},),
               tableID)
@@ -663,7 +663,7 @@ function ModelicaStandardTables_CombiTimeTable_nextTimeEvent(arg::Ptr, t::Cdoubl
 end
 
 function ModelicaStandardTables_CombiTimeTable_nextTimeEvent(tableID::ExternalCombiTimeTable, t::Float64)::Float64
-  res = ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, libModelicaExternalC),
               #= Returns =# Cdouble,
               (Ptr{Cvoid}, Cdouble),
               tableID, t)
@@ -677,7 +677,7 @@ function ModelicaStandardTables_CombiTimeTable_read(tableID::Ptr{Cvoid}, force::
 end
 
 function ModelicaStandardTables_CombiTimeTable_read(tableID::ExternalCombiTimeTable, force::Int64, verbose::Int64)
-  res = ccall((:ModelicaStandardTables_CombiTimeTable_read, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTimeTable_read, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cint, Cint),
               tableID, force, verbose)
@@ -740,7 +740,7 @@ function ModelicaStandardTables_CombiTable2D_init2(
   verbose::Integer)
   #= Converts the table into the C format, that is double* =#
   local tableCShape = reduce(vcat, [table[j,i] for i in 1:size(table,2), j in 1:size(table,1)])
-  local res = ccall((:ModelicaStandardTables_CombiTable2D_init2, installedLibPath), Ptr{Cvoid},
+  local res = ccall((:ModelicaStandardTables_CombiTable2D_init2, libModelicaExternalC), Ptr{Cvoid},
                 (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint),
                     fileName, tableName, tableCShape, nRow, nColumn, smoothness, extrapolation, verbose)
   res
@@ -754,7 +754,7 @@ end
 
 function ModelicaStandardTables_CombiTable2D_close(tableID::ExternalCombiTable2D)
   ccall(
-    (:ModelicaStandardTables_CombiTable2D_close, installedLibPath),
+    (:ModelicaStandardTables_CombiTable2D_close, libModelicaExternalC),
     Cvoid #= Returns =#,
     (Ptr{Cvoid},),
     tableID)
@@ -775,7 +775,7 @@ function ModelicaStandardTables_CombiTable2D_getValue(
   u1::Float64,
   u2::Float64,
   )::Float64
-  res = ccall((:ModelicaStandardTables_CombiTable2D_getValue, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTable2D_getValue, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cdouble, Cdouble),
               tableID, u1, u2)
@@ -803,7 +803,7 @@ function ModelicaStandardTables_CombiTable2D_getDerValue(
   )
   local res = 0.0
   try
-    res = ccall((:ModelicaStandardTables_CombiTable2D_getDerValue, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTable2D_getDerValue, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Cdouble),
                 tableID, u1, u2, der_u1, der_u2)
@@ -840,7 +840,7 @@ function ModelicaStandardTables_CombiTable2D_getDer2Value(
   )
   local res = 0.0
   try
-    res = ccall((:ModelicaStandardTables_CombiTable2D_getDer2Value, installedLibPath),
+    res = ccall((:ModelicaStandardTables_CombiTable2D_getDer2Value, libModelicaExternalC),
                 Cdouble #= Returns =#,
                 (Ptr{Cvoid}, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble, Cdouble),
                 tableID, u1, u2, der_u1, der_u2, der2_u1, der2_u2)
@@ -859,7 +859,7 @@ end
 
 function ModelicaStandardTables_CombiTable2D_minimumAbscissa(tableID::ExternalCombiTable2D)
   uMin = zeros(Cdouble, 2)
-  ccall((:ModelicaStandardTables_CombiTable2D_minimumAbscissa, installedLibPath),
+  ccall((:ModelicaStandardTables_CombiTable2D_minimumAbscissa, libModelicaExternalC),
         Cvoid #= Returns =#,
         (Ptr{Cvoid}, Ptr{Cdouble}),
         tableID, uMin)
@@ -875,7 +875,7 @@ end
 
 function ModelicaStandardTables_CombiTable2D_maximumAbscissa(tableID::ExternalCombiTable2D)
   uMax = zeros(Cdouble, 2)
-  ccall((:ModelicaStandardTables_CombiTable2D_maximumAbscissa, installedLibPath),
+  ccall((:ModelicaStandardTables_CombiTable2D_maximumAbscissa, libModelicaExternalC),
         Cvoid #= Returns =#,
         (Ptr{Cvoid}, Ptr{Cdouble}),
         tableID, uMax)
@@ -889,7 +889,7 @@ function ModelicaStandardTables_CombiTable2D_read(tableID::Ptr{Cvoid}, force::Ci
 end
 
 function ModelicaStandardTables_CombiTable2D_read(tableID::ExternalCombiTable2D, force::Int64, verbose::Int64)
-  res = ccall((:ModelicaStandardTables_CombiTable2D_read, installedLibPath),
+  res = ccall((:ModelicaStandardTables_CombiTable2D_read, libModelicaExternalC),
               Cdouble #= Returns =#,
               (Ptr{Cvoid}, Cint, Cint),
               tableID, force, verbose)
@@ -911,7 +911,7 @@ ModelicaStrings_substring(string::String, startIndex::Int64, endIndex::Int64)
   Returns the substring from startIndex to endIndex (1-based, inclusive).
 """
 function ModelicaStrings_substring(string::String, startIndex::Int64, endIndex::Int64)
-  res = ccall((:ModelicaStrings_substring, installedLibPathlibModelicaExternalC),
+  res = ccall((:ModelicaStrings_substring, libModelicaExternalC),
               #= Returns =# Cstring,
               (Cstring, Cint, Cint),
               string, startIndex, endIndex)
@@ -929,7 +929,7 @@ ModelicaStrings_compare(string1::String, string2::String, caseSensitive::Int64)
   Compares two strings. Returns 1 if string1 < string2, 2 if equal, 3 if string1 > string2.
 """
 function ModelicaStrings_compare(string1::String, string2::String, caseSensitive::Int64)
-  res = ccall((:ModelicaStrings_compare, installedLibPathlibModelicaExternalC),
+  res = ccall((:ModelicaStrings_compare, libModelicaExternalC),
               #= Returns =# Cint,
               (Cstring, Cstring, Cint),
               string1, string2, caseSensitive)
@@ -956,7 +956,7 @@ ModelicaStrings_scanIdentifier(string::String, startIndex::Int64)
 function ModelicaStrings_scanIdentifier(string::String, startIndex::Int64)
   nextIndex = Ref{Cint}(0)
   identifier = Ref{Cstring}(C_NULL)
-  ccall((:ModelicaStrings_scanIdentifier, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanIdentifier, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
         string, startIndex, nextIndex, identifier)
@@ -968,7 +968,7 @@ end
    .scanToken, which MSL's readRealParameter calls). =#
 function ModelicaStrings_scanIdentifier(string::AbstractString, startIndex::Integer, nextIndex::Ref{Cint},
                                         identifier::Ref{Cstring})
-  ccall((:ModelicaStrings_scanIdentifier, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanIdentifier, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
         String(string), Cint(startIndex), nextIndex, identifier)
@@ -990,7 +990,7 @@ ModelicaStrings_scanInteger(string::String, startIndex::Int64, unsignedNumber::I
 function ModelicaStrings_scanInteger(string::String, startIndex::Int64, unsignedNumber::Int64)
   nextIndex = Ref{Cint}(0)
   integerNumber = Ref{Cint}(0)
-  ccall((:ModelicaStrings_scanInteger, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanInteger, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cint}),
         string, startIndex, unsignedNumber, nextIndex, integerNumber)
@@ -999,7 +999,7 @@ end
 
 function ModelicaStrings_scanInteger(string::String, startIndex::Integer, unsignedNumber::Integer,
                                      nextIndex::Ref{Cint}, integerNumber::Ref{Cint})
-  ccall((:ModelicaStrings_scanInteger, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanInteger, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cint}),
         string, Cint(startIndex), Cint(unsignedNumber), nextIndex, integerNumber)
@@ -1021,7 +1021,7 @@ ModelicaStrings_scanReal(string::String, startIndex::Int64, unsignedNumber::Int6
 function ModelicaStrings_scanReal(string::String, startIndex::Integer, unsignedNumber::Integer)
   nextIndex = Ref{Cint}(0)
   number = Ref{Cdouble}(0.0)
-  ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanReal, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
         string, Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
@@ -1032,7 +1032,7 @@ end
    Boolean: Modelica.Utilities.Strings.scanReal in Buildings' weather data reader). =#
 function ModelicaStrings_scanReal(string::AbstractString, startIndex::Integer, unsignedNumber::Integer,
                                   nextIndex::Ref{Cint}, number::Ref{Cdouble})
-  ccall((:ModelicaStrings_scanReal, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanReal, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Cint, Ref{Cint}, Ref{Cdouble}),
         String(string), Cint(startIndex), Cint(unsignedNumber), nextIndex, number)
@@ -1053,7 +1053,7 @@ ModelicaStrings_scanString(string::String, startIndex::Int64)
 function ModelicaStrings_scanString(string::String, startIndex::Int64)
   nextIndex = Ref{Cint}(0)
   result = Ref{Cstring}(C_NULL)
-  ccall((:ModelicaStrings_scanString, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanString, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
         string, startIndex, nextIndex, result)
@@ -1065,7 +1065,7 @@ end
    .scanToken, which MSL's readRealParameter calls). =#
 function ModelicaStrings_scanString(string::AbstractString, startIndex::Integer, nextIndex::Ref{Cint},
                                     result::Ref{Cstring})
-  ccall((:ModelicaStrings_scanString, installedLibPathlibModelicaExternalC),
+  ccall((:ModelicaStrings_scanString, libModelicaExternalC),
         Cvoid,
         (Cstring, Cint, Ref{Cint}, Ref{Cstring}),
         String(string), Cint(startIndex), nextIndex, result)
@@ -1082,14 +1082,14 @@ ModelicaStrings_hashString(string::String)
   Returns a hash value for the given string.
 """
 function ModelicaStrings_hashString(string::String)
-  res = ccall((:ModelicaStrings_hashString, installedLibPathlibModelicaExternalC),
+  res = ccall((:ModelicaStrings_hashString, libModelicaExternalC),
               #= Returns =# Cint,
               (Cstring,),
               string)
   return Int64(res)
 end
 
-#= ---- ModelicaIO functions (via safe_* wrappers in libModelicaCallbacks) ---- =#
+#= ---- ModelicaIO functions (via safe_* wrappers in libModelicaExternalC) ---- =#
 
 """
     ModelicaIO_readMatrixSizes(fileName, matrixName) -> Vector{Int64}
@@ -1099,7 +1099,7 @@ Read the dimensions [nrow, ncol] of a matrix stored in a MATLAB MAT file.
 function ModelicaIO_readMatrixSizes(fileName::String, matrixName::String)::Vector{Int64}
   dim = zeros(Cint, 2)
   rc = ccall(
-    (:safe_ModelicaIO_readMatrixSizes, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaIO_readMatrixSizes, libModelicaExternalC),
     Cint,
     (Cstring, Cstring, Ptr{Cint}),
     fileName, matrixName, dim,
@@ -1133,7 +1133,7 @@ function ModelicaIO_readRealMatrix(
 )::Matrix{Float64}
   buffer = zeros(Cdouble, nrow * ncol)
   rc = ccall(
-    (:safe_ModelicaIO_readRealMatrix, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaIO_readRealMatrix, libModelicaExternalC),
     Cint,
     (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint),
     fileName, matrixName, buffer, Csize_t(nrow), Csize_t(ncol), Cint(verbose),
@@ -1180,7 +1180,7 @@ function ModelicaIO_writeRealMatrix(
   #= Convert Julia column-major to C row-major: transpose then flatten =#
   local buffer = vec(Matrix{Float64}(matrix'))
   rc = ccall(
-    (:safe_ModelicaIO_writeRealMatrix, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaIO_writeRealMatrix, libModelicaExternalC),
     Cint,
     (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cstring),
     fileName, matrixName, buffer, Csize_t(nrow), Csize_t(ncol), Cint(append), version,
@@ -1199,7 +1199,7 @@ function ModelicaIO_writeRealMatrix(fileName::AbstractString, matrixName::Abstra
                                     Matrix{Float64}(matrix), Bool(append), String(version))
 end
 
-#= ---- ModelicaInternal functions (via safe_* wrappers in libModelicaCallbacks) ---- =#
+#= ---- ModelicaInternal functions (via safe_* wrappers in libModelicaExternalC) ---- =#
 
 """
     ModelicaInternal_print(string, fileName)
@@ -1208,7 +1208,7 @@ Print a string to a file (append mode) or to stdout if fileName is empty.
 """
 function ModelicaInternal_print(string::String, fileName::String)
   rc = ccall(
-    (:safe_ModelicaInternal_print, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaInternal_print, libModelicaExternalC),
     Cint,
     (Cstring, Cstring),
     string, fileName,
@@ -1226,7 +1226,7 @@ function ModelicaInternal_readLine(fileName::String, lineNumber::Int64)
   bufPtr = Ref{Cstring}(C_NULL)
   endOfFile = Ref{Cint}(0)
   rc = ccall(
-    (:safe_ModelicaInternal_readLine, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaInternal_readLine, libModelicaExternalC),
     Cint,
     (Cstring, Cint, Ref{Cstring}, Ref{Cint}),
     fileName, Cint(lineNumber), bufPtr, endOfFile,
@@ -1259,7 +1259,7 @@ Count the number of lines in a file.
 function ModelicaInternal_countLines(fileName::String)::Int64
   result = Ref{Cint}(0)
   rc = ccall(
-    (:safe_ModelicaInternal_countLines, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaInternal_countLines, libModelicaExternalC),
     Cint,
     (Cstring, Ref{Cint}),
     fileName, result,
@@ -1276,7 +1276,7 @@ Return the full (absolute) path name of a file.
 function ModelicaInternal_fullPathName(fileName::String)::String
   result = Ref{Cstring}(C_NULL)
   rc = ccall(
-    (:safe_ModelicaInternal_fullPathName, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaInternal_fullPathName, libModelicaExternalC),
     Cint,
     (Cstring, Ref{Cstring}),
     fileName, result,
@@ -1293,7 +1293,7 @@ Return Modelica FileType: 1=NoFile, 2=RegularFile, 3=Directory, 4=SpecialFile.
 function ModelicaInternal_stat(name::String)::Int64
   result = Ref{Cint}(0)
   rc = ccall(
-    (:safe_ModelicaInternal_stat, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaInternal_stat, libModelicaExternalC),
     Cint,
     (Cstring, Ref{Cint}),
     name, result,
@@ -1306,13 +1306,13 @@ end
     ModelicaInternal_removeFile(file)
 
 Remove a file from the filesystem. ccall goes directly to libModelicaExternalC
-because libModelicaCallbacks does not export a safe_ModelicaInternal_removeFile
-wrapper. The C function calls ModelicaFormatError on failure (e.g. file does not
-exist), which propagates through the ModelicaCallbacks shim's error handler.
+because the shim has no safe_ModelicaInternal_removeFile wrapper. The C function calls
+ModelicaFormatError on failure (e.g. file does not exist), which ends the process
+when no safe_* call is running.
 """
 function ModelicaInternal_removeFile(file::String)
   ccall(
-    (:ModelicaInternal_removeFile, installedLibPathlibModelicaExternalC),
+    (:ModelicaInternal_removeFile, libModelicaExternalC),
     Cvoid,
     (Cstring,),
     file,
@@ -1327,7 +1327,7 @@ Close a file that was opened for reading via ModelicaInternal_readLine.
 """
 function ModelicaStreams_closeFile(fileName::String)
   rc = ccall(
-    (:safe_ModelicaStreams_closeFile, installedLibPathlibModelicaCallbacks),
+    (:safe_ModelicaStreams_closeFile, libModelicaExternalC),
     Cint,
     (Cstring,),
     fileName,
@@ -1381,7 +1381,7 @@ end
 #= ---- ModelicaRandom functions (direct ccall, no safe_* shim available) ---- =#
 #=
 The xorshift family and the auxiliary seed/conversion helpers are exported by
-libModelicaExternalC.so but have no wrappers in libModelicaCallbacks.so, so
+libModelicaExternalC but have no safe_* wrappers in the shim, so
 these bindings ccall directly. Signatures mirror the C declarations in
 ModelicaRandom.h: each xorshift{N} is `void f(int* state_in, int* state_out, double* y)`.
 Caller is responsible for allocating state_in / state_out as Vector{Cint} of the
@@ -1397,7 +1397,7 @@ y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
 """
 function ModelicaRandom_xorshift64star(state_in, state_out, y)
   ccall(
-    (:ModelicaRandom_xorshift64star, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_xorshift64star, libModelicaExternalC),
     Cvoid,
     (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
     state_in, state_out, y,
@@ -1413,7 +1413,7 @@ y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
 """
 function ModelicaRandom_xorshift128plus(state_in, state_out, y)
   ccall(
-    (:ModelicaRandom_xorshift128plus, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_xorshift128plus, libModelicaExternalC),
     Cvoid,
     (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
     state_in, state_out, y,
@@ -1429,7 +1429,7 @@ y is a Ref{Cdouble} that receives a uniform sample in [0, 1).
 """
 function ModelicaRandom_xorshift1024star(state_in, state_out, y)
   ccall(
-    (:ModelicaRandom_xorshift1024star, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_xorshift1024star, libModelicaExternalC),
     Cvoid,
     (Ptr{Cint}, Ptr{Cint}, Ref{Cdouble}),
     state_in, state_out, y,
@@ -1445,7 +1445,7 @@ state is a Vector{Cint} of length nState; id is the generator id (Int).
 """
 function ModelicaRandom_setInternalState_xorshift1024star(state, nState::Integer, id::Integer)
   ccall(
-    (:ModelicaRandom_setInternalState_xorshift1024star, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_setInternalState_xorshift1024star, libModelicaExternalC),
     Cvoid,
     (Ptr{Cint}, Csize_t, Cint),
     state, Csize_t(nState), Cint(id),
@@ -1461,7 +1461,7 @@ seeded via ModelicaRandom_setInternalState_xorshift1024star.
 """
 function ModelicaRandom_impureRandom_xorshift1024star(id::Integer)::Float64
   return ccall(
-    (:ModelicaRandom_impureRandom_xorshift1024star, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_impureRandom_xorshift1024star, libModelicaExternalC),
     Cdouble,
     (Cint,),
     Cint(id),
@@ -1558,7 +1558,7 @@ The dummy argument exists only to constrain Modelica call ordering.
 """
 function ModelicaRandom_automaticGlobalSeed(dummy::Real = 0.0)::Int
   return Int(ccall(
-    (:ModelicaRandom_automaticGlobalSeed, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_automaticGlobalSeed, libModelicaExternalC),
     Cint,
     (Cdouble,),
     Cdouble(dummy),
@@ -1572,7 +1572,7 @@ Reinterpret a Float64 as two Int32 words, written into i (Vector{Cint} of length
 """
 function ModelicaRandom_convertRealToIntegers(d::Real, i)
   ccall(
-    (:ModelicaRandom_convertRealToIntegers, installedLibPathlibModelicaExternalC),
+    (:ModelicaRandom_convertRealToIntegers, libModelicaExternalC),
     Cvoid,
     (Cdouble, Ptr{Cint}),
     Cdouble(d), i,
@@ -1598,16 +1598,16 @@ function ModelicaStandardTables_CombiTimeTable_init3(fileName::AbstractString, t
                                                      nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
   local cols = convert(Vector{Cint}, collect(columns))
-  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init3, installedLibPath), Ptr{Cvoid},
+  local res = ccall((:ModelicaStandardTables_CombiTimeTable_init3, libModelicaExternalC), Ptr{Cvoid},
                     (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cdouble, Ptr{Cint}, Csize_t,
                      Cint, Cint, Cdouble, Cint, Cint, Cstring, Cint),
                     fileName, tableName, tab, nRow, nColumn, startTime, cols, nCols,
                     smoothness, extrapolation, shiftTime, timeEvents, verbose, delimiter, nHeaderLines)
   #= the table's first nextTimeEvent call, as init2 =#
   if res != C_NULL
-    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, installedLibPath),
+    local tMin = ccall((:ModelicaStandardTables_CombiTimeTable_minimumTime, libModelicaExternalC),
                        Cdouble, (Ptr{Cvoid},), res)
-    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, installedLibPath),
+    ccall((:ModelicaStandardTables_CombiTimeTable_nextTimeEvent, libModelicaExternalC),
           Cdouble, (Ptr{Cvoid}, Cdouble), res, max(startTime, tMin))
   end
   return res
@@ -1619,7 +1619,7 @@ function ModelicaStandardTables_CombiTable1D_init3(fileName::AbstractString, tab
                                                    verbose::Integer, delimiter::AbstractString, nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
   local cols = convert(Vector{Cint}, collect(columns))
-  return ccall((:ModelicaStandardTables_CombiTable1D_init3, installedLibPath), Ptr{Cvoid},
+  return ccall((:ModelicaStandardTables_CombiTable1D_init3, libModelicaExternalC), Ptr{Cvoid},
                (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Ptr{Cint}, Csize_t, Cint, Cint, Cint, Cstring, Cint),
                fileName, tableName, tab, nRow, nColumn, cols, nCols, smoothness, extrapolation, verbose,
                delimiter, nHeaderLines)
@@ -1630,7 +1630,7 @@ function ModelicaStandardTables_CombiTable2D_init3(fileName::AbstractString, tab
                                                    extrapolation::Integer, verbose::Integer, delimiter::AbstractString,
                                                    nHeaderLines::Integer)
   local tab = _tableRowMajor(table)
-  return ccall((:ModelicaStandardTables_CombiTable2D_init3, installedLibPath), Ptr{Cvoid},
+  return ccall((:ModelicaStandardTables_CombiTable2D_init3, libModelicaExternalC), Ptr{Cvoid},
                (Cstring, Cstring, Ptr{Cdouble}, Csize_t, Csize_t, Cint, Cint, Cint, Cstring, Cint),
                fileName, tableName, tab, nRow, nColumn, smoothness, extrapolation, verbose, delimiter, nHeaderLines)
 end

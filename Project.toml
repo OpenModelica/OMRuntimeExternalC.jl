@@ -1,29 +1,18 @@
 name = "OMRuntimeExternalC"
 uuid = "ada38df0-e20e-11ed-02f3-2b4b19c1ec8a"
 authors = ["Adrian Pop <adrian.pop@liu.se>", "John Tinnerholm <john.tinnerholm@liu.se>"]
-version = "0.3.7"
+version = "1.0.0"
 
 [deps]
-Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-GettextRuntime_jll = "b0724c58-0f36-5564-988d-3bb0596ebc4a"
-Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-Inflate = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
-Libiconv_jll = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
-Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
-GettextRuntime_jll = "0.22"
-Libiconv_jll = "1"
 julia = "1.13"
-Glob = "1"
-Inflate = "0.1"
-ZipFile = "0.10"
 
 [extras]
 Glib_jll = "7746bdde-850d-59dc-9ae8-88ece973131d"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Glib_jll"]
+test = ["Glib_jll", "Test"]
