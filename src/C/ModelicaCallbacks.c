@@ -48,10 +48,17 @@
  *    Compiled external C code of a model, which calls these functions, finds
  *    them in the process once the library is loaded with RTLD_GLOBAL.
  * 2) Modelica code reports an error by calling ModelicaError, which must not
- *    return. Here the call jumps (longjmp) to the safe_* function that Julia
- *    called, which returns 1 and keeps the message (modelica_get_error_msg).
- *    The jump stays inside C: no Julia frame is between setjmp and longjmp.
- *    With no safe_* function active the error ends the process with abort().
+ *    return. Three cases, in this order:
+ *    a) A safe_* function is running on the thread: the call jumps (longjmp)
+ *       to it, and it returns 1 and keeps the message
+ *       (modelica_get_error_msg). The jump stays inside C: no Julia frame is
+ *       between setjmp and longjmp.
+ *    b) The tool has set an error handler (modelica_set_error_handler): it is
+ *       called with the message and must not return. The Julia package sets
+ *       one that throws a Julia exception, so an error of any other function
+ *       of the library, or of compiled external C code of a model, is a Julia
+ *       error of the ccall that was running.
+ *    c) Neither: the message goes to stderr and the process ends (abort).
  */
 
 #include <stdio.h>
@@ -81,10 +88,23 @@ const char* modelica_get_error_msg(void) {
     return error_msg;
 }
 
-/* A Modelica error: jump to the safe_* call that is running, or end the process. */
+/* The tool's error handler: called with the message of an error raised while no safe_* call is running
+   on the thread. It must not return. NULL (the default): such an error ends the process. */
+typedef void (*modelica_error_handler)(const char *message);
+static modelica_error_handler error_handler = NULL;
+
+/* Set the error handler (NULL removes it). Called once by the tool, before any other thread uses the library. */
+void modelica_set_error_handler(modelica_error_handler handler) {
+    error_handler = handler;
+}
+
+/* A Modelica error: jump to the safe_* call that is running, else call the tool's handler, else end the process. */
 static void raise_error(const char *what) {
     if (jmpbuf_ptr) {
         longjmp(*jmpbuf_ptr, 1);
+    }
+    if (error_handler) {
+        error_handler(error_msg);
     }
     fprintf(stderr, "%s: %s\n", what, error_msg);
     abort();

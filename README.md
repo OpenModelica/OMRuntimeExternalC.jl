@@ -22,11 +22,24 @@ Everything is in one shared library, `libModelicaExternalC` (`.dylib`, `.so`, `.
   (`ModelicaStandardTables`, `ModelicaIO`, `ModelicaMatIO`, `ModelicaInternal`, `ModelicaStrings`,
   `ModelicaRandom`, `ModelicaFFT`, with the zlib of that directory), and
 - [`src/C/ModelicaCallbacks.c`](src/C/ModelicaCallbacks.c), which implements `ModelicaUtilities.h` for Julia
-  and has the `safe_*` functions that turn a Modelica error into a Julia error (`error(...)`, with the
-  message of the C code) instead of ending the process.
+  (`ModelicaError`, `ModelicaFormatMessage`, `ModelicaAllocateString` and the others).
 
 It links nothing but the C library of the platform: no OpenModelica runtime, no BLAS, no SUNDIALS, no
 gettext. It exports the `Modelica*` functions and the shim's `modelica_*` and `safe_*` functions.
+
+### Errors
+C code reports an error with `ModelicaError` or `ModelicaFormatError`, which do not return. In this
+library such an error is a Julia error (`ErrorException`, with the message of the C code): the process
+goes on, and the library works afterwards.
+
+- The package sets an error handler when it loads (`modelica_set_error_handler` of the shim). An error of
+  any function of the library, and of compiled external C code of a model that calls `ModelicaError`, is
+  thrown from the `ccall` that was running, as `Modelica runtime error: <message>`.
+- The `safe_*` functions of the shim catch the error in C and return a status; the Julia function throws
+  `<function> failed: <message>`. Nine file functions of `ModelicaIO` and `ModelicaInternal` go
+  this way.
+- Without a handler (the library loaded by another program), the message goes to stderr and the process
+  ends (`abort`).
 
 ### Where the package finds it
 When the package loads (never when it precompiles), in this order:
@@ -72,8 +85,11 @@ that the library is the only one added to the process, and one that loads the pa
 ## Limitations
 
 Not every function of the library has a Julia interface. See `src/api.jl` for the ones that have, and for
-how to add another. A Modelica error in a function that is called directly (without a `safe_*` entry in the
-shim) ends the process.
+how to add another.
+
+A Modelica error leaves the C code where it was reported (the C code frees what it holds before it
+reports, as `ModelicaError` does not return). An error reported on a thread that Julia did not start has
+no Julia caller: it must not happen there.
 
 ## License
 

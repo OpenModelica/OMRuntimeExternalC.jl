@@ -48,6 +48,7 @@ include("api.jl")
 
 function __init__()
   libraryLocation[] = loadLibrary()
+  installErrorHandler()
   return nothing
 end
 

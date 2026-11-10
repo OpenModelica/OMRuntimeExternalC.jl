@@ -43,7 +43,12 @@
     function that is running.
   - safe_* wrapper functions that do setjmp entirely in C, call the Modelica function, and return
     0 on success or nonzero on error. The error message is retrieved via modelica_get_error_msg().
-  This avoids longjmp across Julia ccall boundaries (which is undefined behavior).
+    No C longjmp crosses a Julia frame (which is undefined behavior).
+  - modelica_set_error_handler: the function ModelicaError calls when no safe_* function is
+    running. The package sets `ModelicaError(::Cstring)` (installErrorHandler), so an error in a
+    function called without a safe_* wrapper (the tables, strings, random numbers, removeFile, a
+    library function called by generated code, compiled external C code of a model) is a Julia
+    error of that ccall. Without the handler such an error ends the process.
 =#
 
 """
@@ -1371,12 +1376,38 @@ function ModelicaStreams_closeFile(fileName::String)
   return nothing
 end
 
+"""
+    ModelicaError(msg)
+
+Throw the Modelica error `msg` as a Julia error ("Modelica runtime error: ..."). The method for a
+`Cstring` is the error handler of libModelicaExternalC (`installErrorHandler`): C code that calls
+`ModelicaError` or `ModelicaFormatError` ends up here.
+"""
 function ModelicaError(msg::Cstring)
   error("Modelica runtime error: " * unsafe_string(msg))
 end
 
 function ModelicaError(msg::String)
   error("Modelica runtime error: " * msg)
+end
+
+"""
+    installErrorHandler()::Nothing
+
+Set `ModelicaError(::Cstring)` as the error handler of the loaded libModelicaExternalC
+(`modelica_set_error_handler` of the shim): an error that C code reports with `ModelicaError` or
+`ModelicaFormatError` while no `safe_*` function is running is thrown as a Julia error from the
+`ccall` that was running, instead of ending the process. The C frames between are left without
+cleanup, as the C code expects of `ModelicaError` (it does not return).
+
+Called when the package loads. An error raised on a thread that Julia did not start has no Julia
+caller to catch it.
+"""
+function installErrorHandler()::Nothing
+  libraryPath() === nothing && return nothing
+  local handler::Ptr{Cvoid} = @cfunction(ModelicaError, Cvoid, (Cstring,))
+  ccall((:modelica_set_error_handler, libModelicaExternalC), Cvoid, (Ptr{Cvoid},), handler)
+  return nothing
 end
 
 """

@@ -6,6 +6,7 @@ const ORC = OMRuntimeExternalC
 @testset "OMRuntimeExternalC.jl" begin
 
   include("libraryTests.jl")
+  include("errorTests.jl")
 
   @testset "CombiTable1D with Matrix input" begin
     local table::Matrix{Float64} = [
