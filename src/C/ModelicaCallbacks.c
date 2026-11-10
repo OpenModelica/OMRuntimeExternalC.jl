@@ -64,7 +64,9 @@
 #include "ModelicaIO.h"
 #include "ModelicaInternal.h"
 
-#if defined(_MSC_VER)
+/* Native thread-local storage on Windows (MSVC and MinGW): __thread would need the emulation of libgcc,
+   which uses libwinpthread, a DLL that the library should not depend on. */
+#if defined(_WIN32)
 #  define THREAD_LOCAL __declspec(thread)
 #else
 #  define THREAD_LOCAL __thread

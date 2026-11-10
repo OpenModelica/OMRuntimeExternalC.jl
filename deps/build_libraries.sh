@@ -37,7 +37,6 @@ SHIM="$PKG/src/C/ModelicaCallbacks.c"
 [ -f "$SRC/ModelicaStandardTables.c" ] || { echo "no MSL C sources in $SRC" >&2; exit 1; }
 [ -d "$SRC/zlib" ] || { echo "no zlib sources in $SRC/zlib" >&2; exit 1; }
 
-CC=${CC:-cc}
 NAME=libModelicaExternalC
 CFLAGS=(-O2 -fPIC -Wno-attributes -fno-delete-null-pointer-checks)
 CPPFLAGS=(-DNDEBUG -DHAVE_UNISTD_H -DHAVE_STDARG_H -DHAVE_HIDDEN -DHAVE_MEMCPY
@@ -51,6 +50,7 @@ trap 'rm -rf "$STAGE"' EXIT
 TARGET_OS=${TARGET_OS:-$(uname -s)}
 case "$TARGET_OS" in
   Darwin)
+    CC=${CC:-cc}
     FILE=$NAME.dylib
     export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
     [ -n "${MACOS_ARCH:-}" ] && CFLAGS+=(-arch "$MACOS_ARCH")
@@ -58,12 +58,14 @@ case "$TARGET_OS" in
     LINK=(-dynamiclib -install_name "@rpath/$FILE" -Wl,-exported_symbols_list,"$STAGE/exports")
     ;;
   Linux)
+    CC=${CC:-cc}
     FILE=$NAME.so
     { echo "{ global:"; for p in "${EXPORTS[@]}"; do echo "  $p;"; done; echo "local: *; };"; } > "$STAGE/exports"
     LINK=(-shared -Wl,-soname,"$FILE" -Wl,--version-script="$STAGE/exports" -Wl,-Bsymbolic
           -Wl,--no-undefined -Wl,-z,relro,-z,now)
     ;;
   MINGW*|MSYS*|CYGWIN*)
+    CC=${CC:-gcc}
     FILE=$NAME.dll
     # No libgcc or winpthread DLL next to the library; every symbol is exported.
     LINK=(-shared -static-libgcc -Wl,--export-all-symbols -Wl,--no-undefined)
