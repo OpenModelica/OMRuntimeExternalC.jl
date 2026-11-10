@@ -7,7 +7,8 @@
 # checkout (the tag v4.1.0; the commit is MSL_COMMIT below). The output dir receives
 #   libModelicaExternalC.{dylib,so,dll}
 # for the host: macOS, Linux, or Windows (MSYS2/MinGW, run from bash).
-# MACOS_ARCH=x86_64|arm64 cross-compiles on macOS; CC names the C compiler.
+# MACOS_ARCH=x86_64|arm64 cross-compiles on macOS; CC names the C compiler; TARGET_OS (Darwin, Linux,
+# MINGW) names the target platform when it is not the one `uname -s` reports (a cross compiler).
 #
 # One shared library holds everything: ModelicaStandardTables, ModelicaIO, ModelicaMatIO
 # (with snprintf.c and the zlib of the MSL tree), ModelicaInternal, ModelicaStrings,
@@ -47,7 +48,8 @@ EXPORTS=(Modelica\* modelica_\* safe_\*)
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-case "$(uname -s)" in
+TARGET_OS=${TARGET_OS:-$(uname -s)}
+case "$TARGET_OS" in
   Darwin)
     FILE=$NAME.dylib
     export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
@@ -67,7 +69,7 @@ case "$(uname -s)" in
     LINK=(-shared -static-libgcc -Wl,--export-all-symbols -Wl,--no-undefined)
     ;;
   *)
-    echo "unsupported platform $(uname -s)" >&2; exit 1 ;;
+    echo "unsupported platform $TARGET_OS" >&2; exit 1 ;;
 esac
 
 # One object per source file.
@@ -96,7 +98,7 @@ done
 # Link into the staging directory, then move into place: a running Julia process that has an
 # old library mapped is not disturbed (macOS kills a process whose mapped library is rewritten).
 LIBS=(-lm)
-[ "$(uname -s)" = Linux ] && LIBS+=(-lpthread)
+[ "$TARGET_OS" = Linux ] && LIBS+=(-lpthread)
 "$CC" "${CFLAGS[@]}" "${LINK[@]}" -o "$STAGE/$FILE" "${OBJECTS[@]}" "${LIBS[@]}"
 echo "built $FILE from MSL $MSL_COMMIT"
 
