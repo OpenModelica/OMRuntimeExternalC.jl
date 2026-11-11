@@ -4,10 +4,10 @@ name: OM.jl integration
 # and runs OM.jl's test suite with it, on Julia 1.13, so that a change
 # here cannot break OM.jl unnoticed. The workflow lives in JKRT/OM.jl:
 # .github/workflows/omjl-ci.yml.
+# Disabled on pull requests and pushes (2026-11-10, JKRT): the job is large, and it cannot find the
+# library until a release has put the Artifacts.toml entries in the repository (CI.yml builds the
+# library and tests this package by itself). Run it by hand from the Actions tab when needed.
 on:
-  pull_request:
-  push:
-    branches: [master, "1.13"]
   workflow_dispatch:
 
 permissions:
@@ -16,8 +16,7 @@ permissions:
 
 concurrency:
   group: omjl-${{ github.ref }}
-  # Superseded PR runs only; every push to master/1.13 is tested.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   omjl:

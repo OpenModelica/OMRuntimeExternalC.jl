@@ -1,66 +1,111 @@
-# OMRuntimeExternalC.jl
+# OMRuntimeExternalC.jl [![License: OSMC-PL](https://img.shields.io/badge/license-OSMC--PL-lightgrey.svg)](LICENSE.md)
 
-A wrapper library for Modelica Standard Library (MSL) external C code.
+Julia bindings to the external C functions of the Modelica Standard Library (MSL): the table functions
+(`CombiTable1D`, `CombiTable2D`, `CombiTimeTable`), strings, MAT-file I/O, files and streams, random
+numbers and the FFT, and the tool side of `ModelicaUtilities.h` (`ModelicaError` and the other callbacks).
+It is used by [OMBackend.jl](https://github.com/OpenModelica/OMBackend.jl) to simulate models whose
+external functions are in the Standard Library, and it works on its own.
 
-## Prebuilt Binaries
+```julia
+import OMRuntimeExternalC as ORC
+ORC.ModelicaStrings_length("hello")                               # 5
+table = [1.0 2.0; 3.0 4.0]
+id = ORC.ModelicaStandardTables_CombiTable1D_init2("NoName", "NoName", table, 2, 2, [2], 1, 1, 2, 0)
+ORC.ModelicaStandardTables_CombiTable1D_getValue(id, 1, 2.0)      # 3.0
+```
 
-Download the prebuilt shared libraries for your platform:
+## The library
 
-| Platform | Download | Status |
-|----------|----------|--------|
-| Windows (x86_64) | [x86_64-mingw32.zip](https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0/x86_64-mingw32.zip) | Supported |
-| Linux (x86_64) | [x86_64-linux-gnu.zip](https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v0.1.0/x86_64-linux-gnu.zip) | Supported |
-| macOS (Apple silicon) | `aarch64-apple-darwin.zip` in the newest [`libs-*` release](https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases) | Supported once uploaded (see below) |
-| macOS (Intel) | `x86_64-apple-darwin.zip` in the newest [`libs-*` release](https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases) | Supported once uploaded (see below) |
+Everything is in one shared library, `libModelicaExternalC` (`.dylib`, `.so`, `.dll`). It is compiled from
 
-Extract the contents to `lib/ext/shared/` within this package. `Pkg.build("OMRuntimeExternalC")` does this for you.
+- the C sources of the Modelica Standard Library, tag `v4.1.0`, directory `Modelica/Resources/C-Sources`
+  (`ModelicaStandardTables`, `ModelicaIO`, `ModelicaMatIO`, `ModelicaInternal`, `ModelicaStrings`,
+  `ModelicaRandom`, `ModelicaFFT`, with the zlib of that directory), and
+- [`src/C/ModelicaCallbacks.c`](src/C/ModelicaCallbacks.c), which implements `ModelicaUtilities.h` for Julia
+  (`ModelicaError`, `ModelicaFormatMessage`, `ModelicaAllocateString` and the others).
 
-### macOS
+It links nothing but the C library of the platform: no OpenModelica runtime, no BLAS, no SUNDIALS, no
+gettext. It exports the `Modelica*` functions and the shim's `modelica_*` and `safe_*` functions.
 
-The OpenModelica build of these libraries does not work on macOS (dylib path
-issues), so the macOS binaries are built from the Modelica Standard Library C
-sources instead: `ModelicaExternalC`, `ModelicaStandardTables`, `ModelicaIO`,
-`ModelicaMatIO` and the `ModelicaCallbacks` shim, which are all that `src/api.jl`
-calls. The `OpenModelicaRuntimeC`, `SimulationRuntimeC` and `omcgc` libraries of
-the other platforms are not included.
+### Errors
+C code reports an error with `ModelicaError` or `ModelicaFormatError`, which do not return. In this
+library such an error is a Julia error (`ErrorException`, with the message of the C code): the process
+goes on, and the library works afterwards.
 
-- CI: the `macOS libraries` workflow (`.github/workflows/macos-libs.yml`) builds
-  both architectures and runs the tests on Julia 1.13. Run it by hand
-  with `release_tag` set to the current `libs-*` release to upload the zips there.
-- Locally, from a ModelicaStandardLibrary checkout (tag v4.1.0):
+- The package sets an error handler when it loads (`modelica_set_error_handler` of the shim). An error of
+  any function of the library, and of compiled external C code of a model that calls `ModelicaError`, is
+  thrown from the `ccall` that was running, as `Modelica runtime error: <message>`.
+- The `safe_*` functions of the shim catch the error in C and return a status; the Julia function throws
+  `<function> failed: <message>`. Nine file functions of `ModelicaIO` and `ModelicaInternal` go
+  this way.
+- Without a handler (the library loaded by another program), the message goes to stderr and the process
+  ends (`abort`).
 
-  ```bash
-  deps/build_msl_c_macos.sh <ModelicaStandardLibrary>/Modelica/Resources/C-Sources lib/ext/shared/aarch64-apple-darwin
-  ```
+### Where the package finds it
+When the package loads (never when it precompiles), in this order:
 
-  Library paths are fixed when the package is precompiled, so put the libraries
-  in place before loading it (or delete its compile cache afterwards).
+1. the directory in the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`,
+2. `deps/usr/lib` (`deps/usr/bin` on Windows) of the package: a build of this checkout (below),
+3. the artifact `ModelicaExternalC` of [`Artifacts.toml`](Artifacts.toml), which Pkg installs with the
+   package (tarballs of the platforms `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-linux-gnu`,
+   `aarch64-linux-gnu`, `x86_64-w64-mingw32`, built by the CI and attached to a `libs-v*` release).
 
-## Loaded Dynamic Libraries
+`OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none, with a
+warning when the package loads). The library is loaded with `RTLD_GLOBAL`, so compiled external C code of
+a model that calls `ModelicaError` and the others finds them in the process.
 
-The following libraries are loaded at runtime:
+### Build it yourself
+Needs a C compiler (`cc`; MinGW `gcc` in MSYS2 on Windows) and the MSL sources:
 
-- `ModelicaStandardTables` - Interpolation table functions
-- `OpenModelicaRuntimeC` - OpenModelica runtime utilities
-- `SimulationRuntimeC` - Simulation runtime functions
-- `ModelicaIO` - I/O utilities
-- `ModelicaExternalC` - External C interface functions
+```bash
+git clone --filter=blob:none --no-checkout https://github.com/modelica/ModelicaStandardLibrary.git msl
+git -C msl checkout v4.1.0 -- Modelica/Resources/C-Sources
+deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/lib      # deps/usr/bin on Windows
+deps/check_library.sh deps/usr/lib/libModelicaExternalC.*                  # dependencies and exports
+```
+
+`MACOS_ARCH=x86_64|arm64` cross-compiles on macOS. The build takes about 6 s.
+
+### Release
+`.github/workflows/CI.yml` builds the library on the five platforms, checks it and tests the package against it,
+on every pull request and push. A pushed tag `libs-v1.0.0` (or a run by hand with `release_tag` set) also
+creates that release with the tarballs (Linux built in a manylinux_2_28 container: glibc 2.28 or newer) and hands back the `Artifacts.toml` for them
+(`deps/bind_artifacts.jl`), which is committed. `deps/Yggdrasil/build_tarballs.jl` is the draft of a
+recipe for a `ModelicaExternalC_jll`, as the alternative to the artifact.
+
+## Tests
+
+```julia
+import Pkg; Pkg.test("OMRuntimeExternalC")
+```
+They need the library (above). They include a new Julia process that loads the package and checks
+that the library is the only one added to the process, and one that loads the package before `Glib_jll`
+(on Windows an unrelated gettext DLL of the earlier bundle broke Glib, OpenModelica/OMBackend.jl#101).
 
 ## Limitations
 
-Not all functions of these libraries have interfaces yet.
-If you wish to contribute by adding an interface, please see `api.jl` for examples of how other interfaces have been added.
+Not every function of the library has a Julia interface. See `src/api.jl` for the ones that have, and for
+how to add another.
+
+A Modelica error leaves the C code where it was reported (the C code frees what it holds before it
+reports, as `ModelicaError` does not return). An error reported on a thread that Julia did not start has
+no Julia caller: it must not happen there.
 
 ## License
 
-This package is part of OMJL: https://github.com/OpenModelica/OM.jl
+**This package** is under the OSMC Public License (OSMC-PL) 1.8, like the other OMJL packages: see
+[LICENSE.md](LICENSE.md). This covers the Julia code (`src/`, `test/`), the C shim
+`src/C/ModelicaCallbacks.c` and the build scripts in `deps/`.
 
-The prebuilt binary libraries are built from OpenModelica source code and are redistributed under their respective licenses:
-
-- **SimulationRuntimeC** and **OpenModelicaRuntimeC**: Licensed under the [OSMC Public License (OSMC-PL) v1.8](https://github.com/OpenModelica/OpenModelica/blob/master/OSMC-License.txt), an AGPL-compatible open source license maintained by the Open Source Modelica Consortium.
-
-- **ModelicaExternalC**, **ModelicaIO**, and **ModelicaStandardTables**: Derived from the [Modelica Standard Library](https://github.com/modelica/ModelicaStandardLibrary), licensed under the [3-Clause BSD License](https://modelica.org/licenses/modelica-3-clause-bsd).
-
-For full license texts, see:
-- OSMC-PL v1.8: https://github.com/OpenModelica/OpenModelica/blob/master/OSMC-License.txt
-- Modelica 3-Clause BSD: https://modelica.org/licenses/modelica-3-clause-bsd
+**The C files from the Modelica Standard Library are the MSL's, and the MSL's license applies to them.**
+`libModelicaExternalC` is built from the C sources of the Modelica Standard Library
+(`Modelica/Resources/C-Sources`, tag `v4.1.0`: ModelicaStandardTables, ModelicaIO, ModelicaMatIO,
+ModelicaInternal, ModelicaStrings, ModelicaRandom, ModelicaFFT, with the zlib and the matio and kiss_fft
+code they contain). Those files are not part of this package and not under the OSMC-PL. They are not copied
+into this repository: `deps/build_libraries.sh` and the CI take them from the Standard Library. They are
+licensed by the Modelica Association and contributors under the
+[3-clause BSD license](https://modelica.org/licenses/modelica-3-clause-bsd) (each file has the text in its
+header), and the zlib sources under the zlib license. [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) lists
+every compiled file with its copyright holders and license, and has the license texts. It ships with the
+library (`share/licenses/ModelicaExternalC` in the artifact), so a redistributed binary carries the notices
+that these licenses require.

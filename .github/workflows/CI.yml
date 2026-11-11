@@ -1,128 +1,140 @@
 name: CI
+
+# Builds libModelicaExternalC from the C sources of the Modelica Standard Library on every platform
+# (deps/build_libraries.sh), checks what it depends on and exports (deps/check_library.sh), runs the tests
+# of the package on Julia 1.13 against that build, and keeps the tarball of the platform (the artifact
+# "ModelicaExternalC" of Artifacts.toml).
+#
+# Release: push a tag libs-vX.Y.Z (or run by hand with release_tag set): the tarballs of all platforms go to
+# that GitHub release, and the run's Artifacts.toml has their entries (deps/bind_artifacts.jl): commit it.
+
 on:
   pull_request:
   push:
-    branches:
-      - master
-    tags: '*'
+    branches: [master]
+    tags: ['libs-v*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Create this release (libs-vX.Y.Z) with the tarballs; empty: build and test only"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # modelica/ModelicaStandardLibrary, tag v4.1.0: the commit named MSL_COMMIT in deps/build_libraries.sh
+  MSL_COMMIT: 8ae3d35c24e519cb2996cab20f3b13daf2b0c50a
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
+  library:
+    name: ${{ matrix.triplet }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            version: '1.13'
-            lib_subdir: 'x86_64-mingw32'
-            shim_ext: '.dll'
-          - os: ubuntu-latest
-            version: '1.13'
-            lib_subdir: 'x86_64-linux-gnu'
-            shim_ext: '.so'
+          - {os: macos-latest,     triplet: aarch64-apple-darwin, subdir: lib, shell: bash}
+          - {os: macos-15-intel,   triplet: x86_64-apple-darwin,  subdir: lib, shell: bash}
+          # Linux: the library is built in a manylinux_2_28 container (AlmaLinux 8, glibc 2.28), so it runs on
+          # every distribution with glibc 2.28 or newer (RHEL 8, Debian 10, Ubuntu 18.10); the tests run on the runner
+          - {os: ubuntu-22.04,     triplet: x86_64-linux-gnu,     subdir: lib, shell: bash, manylinux: manylinux_2_28_x86_64}
+          - {os: ubuntu-22.04-arm, triplet: aarch64-linux-gnu,    subdir: lib, shell: bash, manylinux: manylinux_2_28_aarch64}
+          - {os: windows-latest,   triplet: x86_64-w64-mingw32,   subdir: bin, shell: "msys2 {0}"}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: MinGW compiler (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+          # keep the Windows PATH: the Julia steps below run in it
+          path-type: inherit
+
+      - name: Check out the MSL C sources
+        uses: actions/checkout@v4
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: ${{ env.MSL_COMMIT }}
+          path: msl
+          sparse-checkout: Modelica/Resources/C-Sources
+
+      - name: Build libModelicaExternalC
+        if: matrix.manylinux == ''
+        run: deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/${{ matrix.subdir }}
+
+      # as the runner's user: the files in the workspace stay deletable by the runner
+      - name: Build libModelicaExternalC (manylinux_2_28 container)
+        if: matrix.manylinux != ''
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w quay.io/pypa/${{ matrix.manylinux }} \
+            deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/${{ matrix.subdir }}
+
+      - name: Check its dependencies and exports
+        run: deps/check_library.sh deps/usr/${{ matrix.subdir }}/libModelicaExternalC.*
+
+      - name: Package the artifact
+        run: deps/package_library.sh deps/usr/${{ matrix.subdir }} ${{ matrix.triplet }} dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: library-${{ matrix.triplet }}
+          path: dist/ModelicaExternalC.${{ matrix.triplet }}.tar.gz
+          if-no-files-found: error
+
       - uses: julia-actions/setup-julia@v2
         with:
-          version: ${{ matrix.version }}
+          version: "1.13"
 
-      - name: Cache Julia artifacts
-        uses: actions/cache@v4
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-julia-${{ matrix.version }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-julia-${{ matrix.version }}-
+      - uses: julia-actions/cache@v2
 
-      - name: Install dependencies and build
-        shell: bash
-        # The library paths are looked up when the package precompiles
-        # (src/pathSetup.jl): precompile after Pkg.build has downloaded the
-        # libraries, as Pkg.add does, not in Pkg.instantiate (Julia 1.13
-        # precompiles the active project there, and the cache then holds
-        # "not found").
-        env:
-          JULIA_PKG_PRECOMPILE_AUTO: 0
-        run: |
-          julia --color=yes --project -e '
-            import Pkg
-            Pkg.Registry.add("General")
-            Pkg.instantiate()
-            Pkg.build()
-          '
+      - uses: julia-actions/julia-buildpkg@v1
 
-      - name: Build ModelicaCallbacks shim (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          gcc -shared -fPIC -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.so src/modelica_callbacks.c -ldl
-
-      - name: Build ModelicaCallbacks shim (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir -p lib/ext/shared/${{ matrix.lib_subdir }}
-          gcc -shared -o lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks.dll src/modelica_callbacks.c -lpsapi
-
-      - name: Upload shim artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: libModelicaCallbacks-${{ matrix.lib_subdir }}
-          path: lib/ext/shared/${{ matrix.lib_subdir }}/libModelicaCallbacks${{ matrix.shim_ext }}
-
-      - name: Run tests (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          export LD_LIBRARY_PATH="$(pwd)/lib/ext/shared/${{ matrix.lib_subdir }}:${LD_LIBRARY_PATH}"
-          julia --color=yes --project -e '
-            import Pkg
-            Pkg.test()
-          '
-
-      - name: Run tests (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        env:
-          PATH: ${{ github.workspace }}/lib/ext/shared/${{ matrix.lib_subdir }};${{ env.PATH }}
-        run: |
-          julia --color=yes --project -e '
-            import Pkg
-            Pkg.test()
-          '
+      # The package finds the library in deps/usr/{lib,bin} (built above), not in an artifact.
+      - uses: julia-actions/julia-runtest@v1
 
   release:
-    name: Release dynamic libraries
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Release ${{ inputs.release_tag || github.ref_name }}
+    needs: library
+    if: (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') || startsWith(github.ref, 'refs/tags/libs-v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download all shim artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: libModelicaCallbacks-*
-          path: artifacts
+      - uses: actions/checkout@v4
 
-      - name: Package per platform
-        shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: library-*
+          merge-multiple: true
+          path: dist
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.13"
+
+      - name: Create the release with the tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          for dir in artifacts/*/; do
-            platform=$(basename "$dir" | sed 's/^libModelicaCallbacks-//')
-            cd "$dir"
-            tar -czvf "../../${platform}-callbacks.tar.gz" *
-            cd ../..
-          done
+          ls -l dist
+          gh release create "$TAG" dist/ModelicaExternalC.*.tar.gz --target "$GITHUB_SHA" \
+            --title "libModelicaExternalC $TAG" \
+            --notes "Built from the C sources of the Modelica Standard Library v4.1.0 ($MSL_COMMIT) and src/C/ModelicaCallbacks.c at ${GITHUB_SHA}. Licenses: THIRD_PARTY_LICENSES.md."
 
-      - name: Create release
-        uses: marvinpinto/action-automatic-releases@latest
+      - name: Write the entries of Artifacts.toml
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: julia deps/bind_artifacts.jl "$TAG" dist
+
+      - uses: actions/upload-artifact@v4
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          draft: false
-          prerelease: false
-          title: "ModelicaCallbacks Shim ${{ github.ref_name }}"
-          files: |
-            *-callbacks.tar.gz
+          name: Artifacts.toml
+          path: Artifacts.toml
