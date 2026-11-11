@@ -1,0 +1,42 @@
+[[ModelicaExternalC]]
+arch = "aarch64"
+git-tree-sha1 = "e5a608c46a620c0726384cb580b7e902cc08f31b"
+os = "macos"
+
+    [[ModelicaExternalC.download]]
+    sha256 = "141c6acb5f5a921a4a8a96ac5c0582bfc335ebe1e9d275ba391f1b99e7e7f9eb"
+    url = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v1.0.0/ModelicaExternalC.aarch64-apple-darwin.tar.gz"
+[[ModelicaExternalC]]
+arch = "aarch64"
+git-tree-sha1 = "beb884e3f5f9ddf93066fe4fa7a20dd6e54af139"
+libc = "glibc"
+os = "linux"
+
+    [[ModelicaExternalC.download]]
+    sha256 = "5e153b1623c27b8820c02a1b7cd2fc19b3f05d84b862787b2fdf2ebfe1894733"
+    url = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v1.0.0/ModelicaExternalC.aarch64-linux-gnu.tar.gz"
+[[ModelicaExternalC]]
+arch = "x86_64"
+git-tree-sha1 = "bb8a1860f63572ab5d69190ef4756209ce3e4ff4"
+os = "macos"
+
+    [[ModelicaExternalC.download]]
+    sha256 = "ee8d75207204d5a25ed1337e8338bd7650b7126ea74311ad22cdd75cc4c31f3d"
+    url = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v1.0.0/ModelicaExternalC.x86_64-apple-darwin.tar.gz"
+[[ModelicaExternalC]]
+arch = "x86_64"
+git-tree-sha1 = "c5549570258e66943768b9a048a264a5cf3f4ce9"
+libc = "glibc"
+os = "linux"
+
+    [[ModelicaExternalC.download]]
+    sha256 = "91bcf5b6b2d40065f23b288aa00c79216af155e1b079bd2bc62c3942be159b09"
+    url = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v1.0.0/ModelicaExternalC.x86_64-linux-gnu.tar.gz"
+[[ModelicaExternalC]]
+arch = "x86_64"
+git-tree-sha1 = "f30c8198ecdd58757e4a6490d80987b37eb1a49d"
+os = "windows"
+
+    [[ModelicaExternalC.download]]
+    sha256 = "e04894e6480c9dec1003060569303ebddf4d169257889d2087f84c2a1ee7ee2f"
+    url = "https://github.com/OpenModelica/OMRuntimeExternalC.jl/releases/download/libs-v1.0.0/ModelicaExternalC.x86_64-w64-mingw32.tar.gz"
