@@ -1,0 +1,40 @@
+name: Documenter
+
+on:
+  push:
+    branches: [ master ]
+    tags: '*'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+# A newer commit on the same ref cancels a running build, except on master (every master build deploys).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  docs:
+    name: Build and deploy documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write  # deploydocs pushes to gh-pages (master pushes and tags only)
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: julia-actions/setup-julia@v2
+      with:
+        version: '1.13'
+
+    - uses: julia-actions/cache@v2
+
+    # The docs environment takes the package from the checkout ([sources] in docs/Project.toml), Documenter
+    # from General, and the library from the artifact of Artifacts.toml (loaded when the package loads).
+    - name: Instantiate the docs environment
+      run: julia --color=yes --project=docs -e 'import Pkg; Pkg.instantiate()'
+
+    - name: Build (and deploy) the documentation
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: julia --color=yes --project=docs docs/make.jl
