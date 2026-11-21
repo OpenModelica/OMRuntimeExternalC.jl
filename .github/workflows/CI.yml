@@ -3,7 +3,8 @@ name: CI
 # Builds libModelicaExternalC from the C sources of the Modelica Standard Library on every platform
 # (deps/build_libraries.sh), checks what it depends on and exports (deps/check_library.sh), runs the tests
 # of the package on Julia 1.13 against that build, and keeps the tarball of the platform (the artifact
-# "ModelicaExternalC" of Artifacts.toml).
+# "ModelicaExternalC" of Artifacts.toml). The coverage of the tests on x86_64-linux-gnu goes to the job summary
+# and, on master pushes, to gh-pages for the README's badge (the coverage job).
 #
 # Release: push a tag libs-vX.Y.Z (or run by hand with release_tag set): the tarballs of all platforms go to
 # that GitHub release, and the run's Artifacts.toml has their entries (deps/bind_artifacts.jl): commit it.
@@ -114,6 +115,77 @@ jobs:
 
       # The package finds the library in deps/usr/{lib,bin} (built above), not in an artifact.
       - uses: julia-actions/julia-runtest@v1
+
+      # The coverage of the Julia code (julia-runtest runs the tests with coverage) from one platform, for the
+      # coverage job.
+      - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.triplet == 'x86_64-linux-gnu'
+        with:
+          directories: src
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.triplet == 'x86_64-linux-gnu'
+        with:
+          name: lcov
+          path: lcov.info
+          if-no-files-found: error
+
+  # The total and the per-file lines in the job summary, and on master pushes coverage.json (a shields.io
+  # endpoint) on gh-pages for the README's badge. No external service. After all platforms passed.
+  coverage:
+    name: Coverage
+    needs: library
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # coverage.json on gh-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lcov
+
+      - name: Coverage summary
+        run: |
+          awk -F: '
+            /^SF:/ { f = substr($0, 4); if (!(f in n)) { F++; n[f] = 0; h[f] = 0 } }
+            /^LH:/ { h[f] += $2; H += $2 }
+            /^LF:/ { n[f] += $2; N += $2 }
+            END {
+              p = N == 0 ? 0 : 100 * H / N
+              c = p >= 90 ? "brightgreen" : p >= 80 ? "green" : p >= 70 ? "yellowgreen" : p >= 60 ? "yellow" : p >= 50 ? "orange" : "red"
+              m = N == 0 ? "unknown" : sprintf("%.1f%%", p)
+              printf "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"%s\", \"color\": \"%s\"}\n", m, c > "coverage.json"
+              printf "## Coverage of OMRuntimeExternalC.jl/src\n\n**%s**: %d of %d lines, %d files.\n\n", m, H, N, F
+              print "| file | covered | lines | |"
+              print "|---|---:|---:|---:|"
+              for (f in n) printf "| `%s` | %d | %d | %.1f %% |\n", f, h[f], n[f], n[f] == 0 ? 0 : 100 * h[f] / n[f]
+            }' lcov.info >> "$GITHUB_STEP_SUMMARY"
+          cat coverage.json
+
+      # Documenter may deploy to the same branch: a rejected push starts again from the branch's new tip.
+      - name: Publish the badge on gh-pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          badge="$PWD/coverage.json"
+          pages="$RUNNER_TEMP/coverage-pages"
+          for attempt in 1 2 3; do
+            rm -rf "$pages" && git worktree prune
+            if git fetch --depth=1 origin gh-pages; then
+              git worktree add --detach "$pages" FETCH_HEAD
+            else
+              git worktree add --orphan -b "coverage-pages-$attempt" "$pages"
+            fi
+            cp "$badge" "$pages/coverage.json"
+            git -C "$pages" add coverage.json
+            if git -C "$pages" diff --cached --quiet; then echo "coverage unchanged"; exit 0; fi
+            git -C "$pages" -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Coverage badge: $(sed -n 's/.*"message": "\([^"]*\)".*/\1/p' "$badge") (${GITHUB_SHA::8})"
+            git -C "$pages" push origin HEAD:refs/heads/gh-pages && exit 0
+            sleep $((attempt * 10))
+          done
+          exit 1
 
   release:
     name: Release ${{ inputs.release_tag || github.ref_name }}

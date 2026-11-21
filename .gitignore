@@ -6,3 +6,4 @@
 *.a
 *.tar.gz
 Manifest.toml
+docs/build/

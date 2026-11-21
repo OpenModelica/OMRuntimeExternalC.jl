@@ -1,4 +1,6 @@
-# OMRuntimeExternalC.jl [![License: AGPL-3.0 or OSMC-PL](https://img.shields.io/badge/license-AGPL--3.0%20or%20OSMC--PL-lightgrey.svg)](LICENSE.md)
+# OMRuntimeExternalC.jl
+
+[![CI](https://github.com/OpenModelica/OMRuntimeExternalC.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/OpenModelica/OMRuntimeExternalC.jl/actions/workflows/CI.yml) [![Coverage](https://img.shields.io/endpoint?url=https://openmodelica.github.io/OMRuntimeExternalC.jl/coverage.json)](https://github.com/OpenModelica/OMRuntimeExternalC.jl/actions/workflows/CI.yml?query=branch%3Amaster) [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://OpenModelica.github.io/OMRuntimeExternalC.jl/dev/) [![License: AGPL-3.0 or OSMC-PL](https://img.shields.io/badge/license-AGPL--3.0%20or%20OSMC--PL-lightgrey.svg)](LICENSE.md)
 
 Julia bindings to the external C functions of the Modelica Standard Library (MSL): the table functions
 (`CombiTable1D`, `CombiTable2D`, `CombiTimeTable`), strings, MAT-file I/O, files and streams, random
