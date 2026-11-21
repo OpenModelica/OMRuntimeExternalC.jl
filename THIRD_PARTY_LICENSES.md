@@ -1,13 +1,13 @@
 # Third-party licenses
 
-OMRuntimeExternalC itself (the Julia code, `src/C/ModelicaCallbacks.c`, the build scripts) is under the OSMC Public License (OSMC-PL) 1.8 ([LICENSE.md](LICENSE.md)).
-The C files of the Modelica Standard Library listed below are the MSL's: the license of the MSL applies to them, not the OSMC-PL.
+OMRuntimeExternalC itself (the Julia code, `src/C/ModelicaCallbacks.c`, the build scripts) is under the OSMC Public License (OSMC-PL) 1.8 or the GNU Affero General Public License version 3 (AGPL v3), at the recipient's choice ([LICENSE.md](LICENSE.md) holds both).
+The C files of the Modelica Standard Library listed below are the MSL's: the license of the MSL applies to them, not the OSMC-PL or the AGPL.
 
 `libModelicaExternalC` (the shared library the package loads, built by `deps/build_libraries.sh`) is
 compiled from the C sources of the Modelica Standard Library (MSL), tag `v4.1.0`, commit
 `8ae3d35c24e519cb2996cab20f3b13daf2b0c50a`, directory `Modelica/Resources/C-Sources`, and the shim
 `src/C/ModelicaCallbacks.c` of this package. The library is a combined work: the shim is under
-the OSMC-PL, each MSL source under the license named in its own header, as listed here. This file ships with the library (`share/licenses/ModelicaExternalC`).
+the OSMC-PL or the AGPL v3, each MSL source under the license named in its own header, as listed here. This file ships with the library (`share/licenses/ModelicaExternalC`).
 
 | Compiled into the library | Copyright holders (from the file headers) | License |
 |---|---|---|

@@ -1,4 +1,4 @@
-# OMRuntimeExternalC.jl [![License: OSMC-PL](https://img.shields.io/badge/license-OSMC--PL-lightgrey.svg)](LICENSE.md)
+# OMRuntimeExternalC.jl [![License: AGPL-3.0 or OSMC-PL](https://img.shields.io/badge/license-AGPL--3.0%20or%20OSMC--PL-lightgrey.svg)](LICENSE.md)
 
 Julia bindings to the external C functions of the Modelica Standard Library (MSL): the table functions
 (`CombiTable1D`, `CombiTable2D`, `CombiTimeTable`), strings, MAT-file I/O, files and streams, random
@@ -93,15 +93,15 @@ no Julia caller: it must not happen there.
 
 ## License
 
-**This package** is under the OSMC Public License (OSMC-PL) 1.8, like the other OMJL packages: see
-[LICENSE.md](LICENSE.md). This covers the Julia code (`src/`, `test/`), the C shim
+**This package** is under the OSMC Public License (OSMC-PL) 1.8 or the GNU Affero General Public License version 3 (AGPL v3), at the recipient's choice, like OMFrontend and
+OMBackend: [LICENSE.md](LICENSE.md) holds both. This covers the Julia code (`src/`, `test/`), the C shim
 `src/C/ModelicaCallbacks.c` and the build scripts in `deps/`.
 
 **The C files from the Modelica Standard Library are the MSL's, and the MSL's license applies to them.**
 `libModelicaExternalC` is built from the C sources of the Modelica Standard Library
 (`Modelica/Resources/C-Sources`, tag `v4.1.0`: ModelicaStandardTables, ModelicaIO, ModelicaMatIO,
 ModelicaInternal, ModelicaStrings, ModelicaRandom, ModelicaFFT, with the zlib and the matio and kiss_fft
-code they contain). Those files are not part of this package and not under the OSMC-PL. They are not copied
+code they contain). Those files are not part of this package and not under the OSMC-PL or the AGPL. They are not copied
 into this repository: `deps/build_libraries.sh` and the CI take them from the Standard Library. They are
 licensed by the Modelica Association and contributors under the
 [3-clause BSD license](https://modelica.org/licenses/modelica-3-clause-bsd) (each file has the text in its
