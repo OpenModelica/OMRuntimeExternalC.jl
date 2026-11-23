@@ -3,10 +3,10 @@ name: Documenter
 on:
   push:
     branches: [ master ]
-    tags: '*'
+    tags: ['v*']  # package versions; the library releases (libs-v*) have no docs
   pull_request:
     branches: [ master ]
-  workflow_dispatch:
+  workflow_dispatch:  # TagBot.yml dispatches it at a new tag: vX.Y.Z and stable docs
 
 # A newer commit on the same ref cancels a running build, except on master (every master build deploys).
 concurrency:
