@@ -66,6 +66,16 @@ end
     @test ORC.libraryDirectory(Dict(ORC.LIBRARY_DIRECTORY_VARIABLE => empty)) == ORC.libraryDirectory(Dict{String, String}())
   end
 
+  @testset "ModelicaExternalC_jll has the library (it does not open it: dont_dlopen)" begin
+    if ORC.ModelicaExternalC_jll.is_available()
+      local dir::Union{Nothing, String} = ORC.jllDirectory()
+      @test dir !== nothing
+      @test isfile(joinpath(dir, ORC.libraryFileName))
+    else
+      @test ORC.jllDirectory() === nothing
+    end
+  end
+
   @testset "a new process loads the library and nothing else (no omc runtime, no gettext)" begin
     local code::String = """
       import Libdl

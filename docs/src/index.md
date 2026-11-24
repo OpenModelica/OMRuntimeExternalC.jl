@@ -22,8 +22,8 @@ Everything is in one shared library, `libModelicaExternalC`, compiled from the C
 When the package loads, it takes the library from, in this order:
 1. the directory in the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`,
 2. `deps/usr/lib` (`deps/usr/bin` on Windows) of the package, a build of the checkout,
-3. the artifact `ModelicaExternalC` of `Artifacts.toml`, which Pkg installs with the package (macOS and
-   Linux on aarch64 and x86_64, Windows on x86_64).
+3. `ModelicaExternalC_jll`, which Pkg installs with the package (built by Yggdrasil for every platform
+   it supports). Its preference `libModelicaExternalC_path` (Preferences.jl) points it to your own build.
 
 `OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none).
 How to build the library yourself and how a release is made: see the

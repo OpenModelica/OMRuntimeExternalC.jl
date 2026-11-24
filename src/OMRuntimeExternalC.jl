@@ -40,8 +40,8 @@ built from the C sources of the Standard Library (see `libraryPath`).
 """
 module OMRuntimeExternalC
 
-import Artifacts
 import Libdl
+import ModelicaExternalC_jll
 
 include("Library.jl")
 include("api.jl")

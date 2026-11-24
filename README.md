@@ -48,9 +48,18 @@ When the package loads (never when it precompiles), in this order:
 
 1. the directory in the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`,
 2. `deps/usr/lib` (`deps/usr/bin` on Windows) of the package: a build of this checkout (below),
-3. the artifact `ModelicaExternalC` of [`Artifacts.toml`](Artifacts.toml), which Pkg installs with the
-   package (tarballs of the platforms `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-linux-gnu`,
-   `aarch64-linux-gnu`, `x86_64-w64-mingw32`, built by the CI and attached to a `libs-v*` release).
+3. `ModelicaExternalC_jll`, which Pkg installs with the package. Yggdrasil builds it
+   ([`M/ModelicaExternalC`](https://github.com/JuliaPackaging/Yggdrasil/tree/master/M/ModelicaExternalC);
+   the recipe is also in `deps/Yggdrasil/build_tarballs.jl`) for every platform it supports.
+
+To use your own build in place of the JLL, set the JLL's preference (Preferences.jl), as for every JLL:
+
+```julia
+using Preferences, ModelicaExternalC_jll
+set_preferences!(ModelicaExternalC_jll, "libModelicaExternalC_path" => "/path/to/libModelicaExternalC.so")
+```
+
+1 and 2 stay for local builds and the setups that used them before the JLL.
 
 `OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none, with a
 warning when the package loads). The library is loaded with `RTLD_GLOBAL`, so compiled external C code of
@@ -71,9 +80,9 @@ deps/check_library.sh deps/usr/lib/libModelicaExternalC.*                  # dep
 ### Release
 `.github/workflows/CI.yml` builds the library on the five platforms, checks it and tests the package against it,
 on every pull request and push. A pushed tag `libs-v1.0.0` (or a run by hand with `release_tag` set) also
-creates that release with the tarballs (Linux built in a manylinux_2_28 container: glibc 2.28 or newer) and hands back the `Artifacts.toml` for them
-(`deps/bind_artifacts.jl`), which is committed. `deps/Yggdrasil/build_tarballs.jl` is the draft of a
-recipe for a `ModelicaExternalC_jll`, as the alternative to the artifact.
+creates that release with the tarballs (Linux built in a manylinux_2_28 container: glibc 2.28 or newer) and
+an `Artifacts.toml` for them (`deps/bind_artifacts.jl`). The package no longer uses them: it takes the library
+from `ModelicaExternalC_jll`, which Yggdrasil builds from `deps/Yggdrasil/build_tarballs.jl`.
 
 ## Tests
 
@@ -109,5 +118,5 @@ licensed by the Modelica Association and contributors under the
 [3-clause BSD license](https://modelica.org/licenses/modelica-3-clause-bsd) (each file has the text in its
 header), and the zlib sources under the zlib license. [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) lists
 every compiled file with its copyright holders and license, and has the license texts. It ships with the
-library (`share/licenses/ModelicaExternalC` in the artifact), so a redistributed binary carries the notices
+library (`share/licenses/ModelicaExternalC` in the JLL), so a redistributed binary carries the notices
 that these licenses require.
