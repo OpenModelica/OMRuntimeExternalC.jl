@@ -87,10 +87,12 @@ end
 
   @testset "the preference libModelicaExternalC_path of ModelicaExternalC_jll names another build" begin
     if path !== nothing
-      #= another build: here a copy under another name, named in the LocalPreferences.toml of an
-         environment first on the load path =#
+      #= another build: here a copy in another directory, named in the LocalPreferences.toml of an
+         environment first on the load path. It keeps the file name: the bindings find the loaded
+         library by its name (on Windows the file name). =#
       local dir::String = mktempdir()
-      local other::String = joinpath(dir, "other-" * ORC.libraryFileName)
+      mkdir(joinpath(dir, "build"))
+      local other::String = joinpath(dir, "build", ORC.libraryFileName)
       cp(path, other)
       write(joinpath(dir, "Project.toml"), "[deps]\nModelicaExternalC_jll = \"e50027ce-dbd8-5e12-a1a0-972edb6cb29f\"\n")
       write(joinpath(dir, "LocalPreferences.toml"),

@@ -77,7 +77,9 @@ end
     libraryFile()::String
 
 The file of libModelicaExternalC: ModelicaExternalC_jll's, or the one its preference
-`libModelicaExternalC_path` names (any file name). Meaningful when `hasLibraryFile()` holds.
+`libModelicaExternalC_path` names. That file keeps the name `libraryFileName`: the bindings find the
+loaded library by it (`libModelicaExternalC`; on Windows the file name). Meaningful when
+`hasLibraryFile()` holds.
 """
 libraryFile()::String = ModelicaExternalC_jll.libModelicaExternalC_path
 

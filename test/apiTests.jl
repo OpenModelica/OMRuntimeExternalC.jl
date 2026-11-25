@@ -107,6 +107,8 @@ end
     @test ORC.ModelicaInternal_readLine(file, 3, eofVector) == ""
     @test eofVector[1] == 1
     @test ORC.ModelicaInternal_readLine(file, 2, nothing) == "second"
+    #= the C code keeps the file open after a line before its end (Windows cannot delete an open file) =#
+    ORC.ModelicaStreams_closeFile(file)
     rm(file)
   end
 

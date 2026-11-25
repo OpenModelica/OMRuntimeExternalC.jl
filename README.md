@@ -58,6 +58,9 @@ using Preferences, ModelicaExternalC_jll
 set_preferences!(ModelicaExternalC_jll, "libModelicaExternalC_path" => "/path/to/libModelicaExternalC.so")
 ```
 
+The file keeps its name (`libModelicaExternalC.so`, `.dylib`, `.dll`): the bindings find the loaded library
+by it.
+
 `OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none, with a
 warning when the package loads).
 
