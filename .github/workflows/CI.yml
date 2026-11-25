@@ -1,13 +1,11 @@
 name: CI
 
 # Builds libModelicaExternalC from the C sources of the Modelica Standard Library on every platform
-# (deps/build_libraries.sh), checks what it depends on and exports (deps/check_library.sh), runs the tests
-# of the package on Julia 1.13 against that build, and keeps the tarball of the platform (the artifact
-# "ModelicaExternalC" of Artifacts.toml). The coverage of the tests on x86_64-linux-gnu goes to the job summary
-# and, on master pushes, to gh-pages for the README's badge (the coverage job).
-#
-# Release: push a tag libs-vX.Y.Z (or run by hand with release_tag set): the tarballs of all platforms go to
-# that GitHub release, and the run's Artifacts.toml has their entries (deps/bind_artifacts.jl): commit it.
+# (deps/build_libraries.sh, the script Yggdrasil's M/ModelicaExternalC runs), checks what it depends on and
+# exports (deps/check_library.sh), and runs the tests of the package on Julia 1.13 against that build: the
+# preference libModelicaExternalC_path of ModelicaExternalC_jll names it, so a change of the C shim is tested
+# before Yggdrasil builds it. The coverage of the tests on x86_64-linux-gnu goes to the job summary and, on
+# master pushes, to gh-pages for the README's badge (the coverage job).
 
 on:
   pull_request:
@@ -21,7 +19,6 @@ on:
       - '.github/workflows/omjl.yml'
   push:
     branches: [master]
-    tags: ['libs-v*']
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -31,11 +28,6 @@ on:
       - '.gitignore'
       - '.github/workflows/omjl.yml'
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Create this release (libs-vX.Y.Z) with the tarballs; empty: build and test only"
-        required: false
-        default: ""
 
 permissions:
   contents: read
@@ -96,14 +88,14 @@ jobs:
       - name: Check its dependencies and exports
         run: deps/check_library.sh deps/usr/${{ matrix.subdir }}/libModelicaExternalC.*
 
-      - name: Package the artifact
-        run: deps/package_library.sh deps/usr/${{ matrix.subdir }} ${{ matrix.triplet }} dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: library-${{ matrix.triplet }}
-          path: dist/ModelicaExternalC.${{ matrix.triplet }}.tar.gz
-          if-no-files-found: error
+      # The package loads the file this preference names in place of the JLL's (Pkg.test reads the
+      # LocalPreferences.toml next to Project.toml).
+      - name: Name this build in the preference of ModelicaExternalC_jll
+        run: |
+          case "$RUNNER_OS" in Windows) root=$(cygpath -m "$PWD"); ext=dll ;; macOS) root=$PWD; ext=dylib ;; *) root=$PWD; ext=so ;; esac
+          printf '[ModelicaExternalC_jll]\nlibModelicaExternalC_path = "%s"\n' \
+            "$root/deps/usr/${{ matrix.subdir }}/libModelicaExternalC.$ext" > LocalPreferences.toml
+          cat LocalPreferences.toml
 
       - uses: julia-actions/setup-julia@v2
         with:
@@ -113,7 +105,6 @@ jobs:
 
       - uses: julia-actions/julia-buildpkg@v1
 
-      # The package finds the library in deps/usr/{lib,bin} (built above), not in an artifact.
       - uses: julia-actions/julia-runtest@v1
 
       # The coverage of the Julia code (julia-runtest runs the tests with coverage) from one platform, for the
@@ -129,6 +120,25 @@ jobs:
           name: lcov
           path: lcov.info
           if-no-files-found: error
+
+  # The tests against the library users get: ModelicaExternalC_jll's, no preference.
+  jll:
+    name: ModelicaExternalC_jll, ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.13"
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          coverage: false
 
   # The total and the per-file lines in the job summary, and on master pushes coverage.json (a shields.io
   # endpoint) on gh-pages for the README's badge. No external service. After all platforms passed.
@@ -186,43 +196,3 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-
-  release:
-    name: Release ${{ inputs.release_tag || github.ref_name }}
-    needs: library
-    if: (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') || startsWith(github.ref, 'refs/tags/libs-v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: library-*
-          merge-multiple: true
-          path: dist
-
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: "1.13"
-
-      - name: Create the release with the tarballs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.release_tag || github.ref_name }}
-        run: |
-          ls -l dist
-          gh release create "$TAG" dist/ModelicaExternalC.*.tar.gz --target "$GITHUB_SHA" \
-            --title "libModelicaExternalC $TAG" \
-            --notes "Built from the C sources of the Modelica Standard Library v4.1.0 ($MSL_COMMIT) and src/C/ModelicaCallbacks.c at ${GITHUB_SHA}. Licenses: THIRD_PARTY_LICENSES.md."
-
-      - name: Write the entries of Artifacts.toml
-        env:
-          TAG: ${{ inputs.release_tag || github.ref_name }}
-        run: julia deps/bind_artifacts.jl "$TAG" dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Artifacts.toml
-          path: Artifacts.toml

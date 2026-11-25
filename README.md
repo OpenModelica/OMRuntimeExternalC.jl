@@ -44,26 +44,22 @@ goes on, and the library works afterwards.
   ends (`abort`).
 
 ### Where the package finds it
-When the package loads (never when it precompiles), in this order:
+The library comes from `ModelicaExternalC_jll`, which Pkg installs with the package. Yggdrasil builds it
+([`M/ModelicaExternalC`](https://github.com/JuliaPackaging/Yggdrasil/tree/master/M/ModelicaExternalC),
+with `deps/build_libraries.sh` of this repository) for every platform it supports. The package loads it
+when it loads (never when it precompiles), with `RTLD_GLOBAL`, so compiled external C code of a model that
+calls `ModelicaError` and the others finds them in the process.
 
-1. the directory in the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`,
-2. `deps/usr/lib` (`deps/usr/bin` on Windows) of the package: a build of this checkout (below),
-3. `ModelicaExternalC_jll`, which Pkg installs with the package. Yggdrasil builds it
-   ([`M/ModelicaExternalC`](https://github.com/JuliaPackaging/Yggdrasil/tree/master/M/ModelicaExternalC);
-   the recipe is also in `deps/Yggdrasil/build_tarballs.jl`) for every platform it supports.
-
-To use your own build in place of the JLL, set the JLL's preference (Preferences.jl), as for every JLL:
+To use another build (your own, or one for a platform the JLL has no build for), set the JLL's preference
+(Preferences.jl), as for every JLL:
 
 ```julia
 using Preferences, ModelicaExternalC_jll
 set_preferences!(ModelicaExternalC_jll, "libModelicaExternalC_path" => "/path/to/libModelicaExternalC.so")
 ```
 
-1 and 2 stay for local builds and the setups that used them before the JLL.
-
 `OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none, with a
-warning when the package loads). The library is loaded with `RTLD_GLOBAL`, so compiled external C code of
-a model that calls `ModelicaError` and the others finds them in the process.
+warning when the package loads).
 
 ### Build it yourself
 Needs a C compiler (`cc`; MinGW `gcc` in MSYS2 on Windows) and the MSL sources:
@@ -75,14 +71,13 @@ deps/build_libraries.sh msl/Modelica/Resources/C-Sources deps/usr/lib      # dep
 deps/check_library.sh deps/usr/lib/libModelicaExternalC.*                  # dependencies and exports
 ```
 
-`MACOS_ARCH=x86_64|arm64` cross-compiles on macOS. The build takes about 6 s.
+`MACOS_ARCH=x86_64|arm64` cross-compiles on macOS. The build takes about 6 s. Then name the file with the
+preference above.
 
-### Release
-`.github/workflows/CI.yml` builds the library on the five platforms, checks it and tests the package against it,
-on every pull request and push. A pushed tag `libs-v1.0.0` (or a run by hand with `release_tag` set) also
-creates that release with the tarballs (Linux built in a manylinux_2_28 container: glibc 2.28 or newer) and
-an `Artifacts.toml` for them (`deps/bind_artifacts.jl`). The package no longer uses them: it takes the library
-from `ModelicaExternalC_jll`, which Yggdrasil builds from `deps/Yggdrasil/build_tarballs.jl`.
+### CI
+`.github/workflows/CI.yml` builds the library on five platforms (Linux in a manylinux_2_28 container: glibc
+2.28 or newer), checks it and tests the package against it through the preference, on every pull request
+and push; it also tests the package against `ModelicaExternalC_jll` itself on Linux, macOS and Windows.
 
 ## Tests
 

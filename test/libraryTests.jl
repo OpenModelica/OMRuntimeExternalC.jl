@@ -57,22 +57,14 @@ end
     end
   end
 
-  @testset "the environment variable names the directory" begin
-    local empty::String = mktempdir()
-    local fake::String = mktempdir()
-    touch(joinpath(fake, ORC.libraryFileName))
-    @test ORC.libraryDirectory(Dict(ORC.LIBRARY_DIRECTORY_VARIABLE => fake)) == fake
-    #= a directory without the file is skipped =#
-    @test ORC.libraryDirectory(Dict(ORC.LIBRARY_DIRECTORY_VARIABLE => empty)) == ORC.libraryDirectory(Dict{String, String}())
-  end
-
   @testset "ModelicaExternalC_jll has the library (it does not open it: dont_dlopen)" begin
     if ORC.ModelicaExternalC_jll.is_available()
-      local dir::Union{Nothing, String} = ORC.jllDirectory()
-      @test dir !== nothing
-      @test isfile(joinpath(dir, ORC.libraryFileName))
+      @test ORC.hasLibraryFile()
+      @test ORC.libraryFile() == ORC.ModelicaExternalC_jll.libModelicaExternalC_path
+      @test ORC.libraryPath() == ORC.libraryFile()
     else
-      @test ORC.jllDirectory() === nothing
+      @test !ORC.hasLibraryFile()
+      @test ORC.libraryPath() === nothing
     end
   end
 
@@ -91,6 +83,24 @@ end
     @test result[1]
     local added::Vector{String} = [strip(l[7:end]) for l in split(result[2], '\n') if startswith(l, "ADDED ")]
     @test added == [ORC.libraryFileName]
+  end
+
+  @testset "the preference libModelicaExternalC_path of ModelicaExternalC_jll names another build" begin
+    if path !== nothing
+      #= another build: here a copy under another name, named in the LocalPreferences.toml of an
+         environment first on the load path =#
+      local dir::String = mktempdir()
+      local other::String = joinpath(dir, "other-" * ORC.libraryFileName)
+      cp(path, other)
+      write(joinpath(dir, "Project.toml"), "[deps]\nModelicaExternalC_jll = \"e50027ce-dbd8-5e12-a1a0-972edb6cb29f\"\n")
+      write(joinpath(dir, "LocalPreferences.toml"),
+            "[ModelicaExternalC_jll]\nlibModelicaExternalC_path = $(repr(other))\n")
+      local code::String = "import OMRuntimeExternalC; println(\"LOADED \", OMRuntimeExternalC.libraryPath())"
+      local cmd::Cmd = addenv(`$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project()) -e $code`,
+                              "JULIA_LOAD_PATH" => join([dir; Base.load_path()], Sys.iswindows() ? ";" : ":"))
+      local text::String = read(ignorestatus(cmd), String)
+      @test occursin("LOADED $other", text)
+    end
   end
 
   @testset "OMRuntimeExternalC, then Glib_jll, in a new process (OMBackend.jl#101)" begin

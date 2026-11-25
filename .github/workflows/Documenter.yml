@@ -30,7 +30,7 @@ jobs:
     - uses: julia-actions/cache@v2
 
     # The docs environment takes the package from the checkout ([sources] in docs/Project.toml), Documenter
-    # from General, and the library from the artifact of Artifacts.toml (loaded when the package loads).
+    # from General, and the library from ModelicaExternalC_jll (loaded when the package loads).
     - name: Instantiate the docs environment
       run: julia --color=yes --project=docs -e 'import Pkg; Pkg.instantiate()'
 

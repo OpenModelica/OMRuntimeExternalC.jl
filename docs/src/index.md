@@ -19,14 +19,12 @@ Everything is in one shared library, `libModelicaExternalC`, compiled from the C
 (tag `v4.1.0`, `Modelica/Resources/C-Sources`) and the shim `src/C/ModelicaCallbacks.c`, which implements
 `ModelicaUtilities.h` for Julia. It links only the C library of the platform.
 
-When the package loads, it takes the library from, in this order:
-1. the directory in the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`,
-2. `deps/usr/lib` (`deps/usr/bin` on Windows) of the package, a build of the checkout,
-3. `ModelicaExternalC_jll`, which Pkg installs with the package (built by Yggdrasil for every platform
-   it supports). Its preference `libModelicaExternalC_path` (Preferences.jl) points it to your own build.
+The library comes from `ModelicaExternalC_jll`, which Pkg installs with the package (built by Yggdrasil
+for every platform it supports). Its preference `libModelicaExternalC_path` (Preferences.jl) points it to
+another build.
 
 `OMRuntimeExternalC.libraryPath()` is the path of the loaded library (`nothing` if there is none).
-How to build the library yourself and how a release is made: see the
+How to build the library yourself: see the
 [README](https://github.com/OpenModelica/OMRuntimeExternalC.jl#build-it-yourself).
 
 ## Errors
