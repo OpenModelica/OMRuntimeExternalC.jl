@@ -35,11 +35,12 @@
 
 #= The library libModelicaExternalC: where it is, and how the package finds it.
 
-   The library is built from the C sources of the Modelica Standard Library and the shim
-   src/C/ModelicaCallbacks.c (deps/build_libraries.sh). It is found in this order:
-     1. the directory in the environment variable OMRUNTIMEEXTERNALC_LIBRARY_DIR,
-     2. deps/usr/lib (deps/usr/bin on Windows), where a build of this checkout puts it,
-     3. the artifact "ModelicaExternalC" of Artifacts.toml, which Pkg installs with the package.
+   The library comes from ModelicaExternalC_jll, which Pkg installs with the package. Yggdrasil
+   (M/ModelicaExternalC) builds it from the C sources of the Modelica Standard Library and the shim
+   src/C/ModelicaCallbacks.c with deps/build_libraries.sh. Another build (a local one, or one for a
+   platform the JLL has no build for) is used through the preference "libModelicaExternalC_path" of
+   ModelicaExternalC_jll (Preferences.jl), as for every JLL. The JLL does not open the library
+   itself (dont_dlopen): this package opens it, RTLD_GLOBAL.
    The place is looked up when the package loads (__init__), never when it precompiles: the cache
    of a precompile holds no path. =#
 
@@ -60,47 +61,27 @@ its SONAME on Linux, its module name on Windows).
 """
 const libModelicaExternalC::String = Sys.isapple() ? "@rpath/" * libraryFileName : libraryFileName
 
-const LIBRARY_DIRECTORY_VARIABLE = "OMRUNTIMEEXTERNALC_LIBRARY_DIR"
-const ARTIFACT_NAME = "ModelicaExternalC"
-
-#= The subdirectory of the artifact and of deps/usr that holds the library. =#
-const LIBRARY_SUBDIRECTORY::String = Sys.iswindows() ? "bin" : "lib"
-
 const libraryLocation = Ref{Union{Nothing, String}}(nothing)
 
 """
-    artifactDirectory()::Union{Nothing, String}
+    hasLibraryFile()::Bool
 
-The directory of the library in the installed artifact "ModelicaExternalC", if Artifacts.toml has
-an entry for this platform and the artifact is installed.
+Whether there is a library file to load: ModelicaExternalC_jll has a build for this platform, or
+its preference `libModelicaExternalC_path` names an existing file.
 """
-function artifactDirectory()::Union{Nothing, String}
-  local toml::Union{Nothing, String} = Artifacts.find_artifacts_toml(@__DIR__)
-  toml === nothing && return nothing
-  local meta::Union{Nothing, Dict{String, Any}} = Artifacts.artifact_meta(ARTIFACT_NAME, toml)
-  meta === nothing && return nothing
-  local path::String = Artifacts.artifact_path(Base.SHA1(meta["git-tree-sha1"]::String))
-  return isdir(path) ? joinpath(path, LIBRARY_SUBDIRECTORY) : nothing
+function hasLibraryFile()::Bool
+  return ModelicaExternalC_jll.is_available() && isfile(ModelicaExternalC_jll.libModelicaExternalC_path)
 end
 
 """
-    libraryDirectory(environment = ENV)::Union{Nothing, String}
+    libraryFile()::String
 
-The directory with libModelicaExternalC, in the order of the list at the top of this file: the
-directory of the environment variable `OMRUNTIMEEXTERNALC_LIBRARY_DIR`, the build directory
-`deps/usr/lib` (`bin` on Windows), the artifact. `nothing` when none of them has the library file.
+The file of libModelicaExternalC: ModelicaExternalC_jll's, or the one its preference
+`libModelicaExternalC_path` names. That file keeps the name `libraryFileName`: the bindings find the
+loaded library by it (`libModelicaExternalC`; on Windows the file name). Meaningful when
+`hasLibraryFile()` holds.
 """
-function libraryDirectory(environment::AbstractDict{String, String} = ENV)::Union{Nothing, String}
-  local candidates::Vector{Union{Nothing, String}} = Union{Nothing, String}[
-    get(environment, LIBRARY_DIRECTORY_VARIABLE, nothing),
-    normpath(joinpath(@__DIR__, "..", "deps", "usr", LIBRARY_SUBDIRECTORY)),
-  ]
-  for dir::Union{Nothing, String} in candidates
-    dir !== nothing && isfile(joinpath(dir, libraryFileName)) && return dir
-  end
-  local fromArtifact::Union{Nothing, String} = artifactDirectory()
-  return fromArtifact !== nothing && isfile(joinpath(fromArtifact, libraryFileName)) ? fromArtifact : nothing
-end
+libraryFile()::String = ModelicaExternalC_jll.libModelicaExternalC_path
 
 """
     libraryPath()::Union{Nothing, String}
@@ -119,14 +100,13 @@ calls `ModelicaError` and the other functions of ModelicaUtilities.h, finds them
 Returns the path, `nothing` (with a warning) if there is no library or it does not load.
 """
 function loadLibrary()::Union{Nothing, String}
-  local dir::Union{Nothing, String} = libraryDirectory()
-  if dir === nothing
+  if !hasLibraryFile()
     @warn """OMRuntimeExternalC: $libraryFileName not found. Calls of external Modelica functions will fail.
-      It is in the artifact $ARTIFACT_NAME (Artifacts.toml), or built by deps/build_libraries.sh
-      into deps/usr/$LIBRARY_SUBDIRECTORY, or in the directory of $LIBRARY_DIRECTORY_VARIABLE."""
+      ModelicaExternalC_jll has no build for this platform, or its preference libModelicaExternalC_path names
+      no file. Build the library with deps/build_libraries.sh and name the file with that preference."""
     return nothing
   end
-  local path::String = joinpath(dir, libraryFileName)
+  local path::String = libraryFile()
   try
     Libdl.dlopen(path, Libdl.RTLD_GLOBAL | Libdl.RTLD_LAZY)
   catch err

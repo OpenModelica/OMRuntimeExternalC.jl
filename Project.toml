@@ -4,10 +4,11 @@ authors = ["Adrian Pop <adrian.pop@liu.se>", "John Tinnerholm <john.tinnerholm@l
 version = "1.0.0"
 
 [deps]
-Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+ModelicaExternalC_jll = "e50027ce-dbd8-5e12-a1a0-972edb6cb29f"
 
 [compat]
+ModelicaExternalC_jll = "4.1.0"
 julia = "1.13"
 
 [extras]
